@@ -65,30 +65,55 @@ class ReplayBuffer:
 
     # ------------------------------------------------------------------ #
 
-    def sample_buffer(self, batch_size, contiguous=False):
-        """Return tensors ready for training (on `output_device`)."""
+    def sample_buffer(self, batch_size, sequence_length):
+        """The goal here is to return a series of contiguous sequences.
+           Returns:
+               states: (B, T, C, H, W)
+               actions: (B, T, N)
+               rewards: (B, T)
+               ...etc
+        """
 
         max_mem = min(self.mem_ctr, self.mem_size)
 
-        if(contiguous):
-            start_pos = random.randint(0, max_mem - batch_size)
-            batch   = torch.arange(start_pos, start_pos + batch_size)
-        else:
-            batch   = torch.randint(0, max_mem, (batch_size,),
-                                device=self.input_device, dtype=torch.int64)
+        batch_states = []
+        batch_next_states = []
+        batch_actions = []
+        batch_rewards = []
+        batch_dones = []
 
-        # Cast / move once, right here - keep as uint8 for VAE
-        states      = self.state_memory[batch]     \
-                        .to(self.output_device, dtype=torch.uint8)
-        next_states = self.next_state_memory[batch]\
-                        .to(self.output_device, dtype=torch.uint8) 
-        rewards     = self.reward_memory[batch].to(self.output_device)
-        dones       = self.terminal_memory[batch].to(self.output_device)
+        for _ in range(batch_size):
+            while True:
+                # Get 10 tries to get a batch without a done state. 
+                start_pos = random.randint(0, max_mem - sequence_length - 1)
+                batch   = torch.arange(start_pos, start_pos + sequence_length)
 
-        # **Return actions as 1-D (B,) LongTensor — caller will unsqueeze**
-        actions     = self.action_memory[batch].to(self.output_device)
+                states      = self.state_memory[batch]     \
+                                .to(self.output_device, dtype=torch.uint8)
+                actions     = self.action_memory[batch].to(self.output_device)
+                rewards     = self.reward_memory[batch].to(self.output_device)
+                next_states = self.next_state_memory[batch]\
+                                .to(self.output_device, dtype=torch.uint8) 
+                dones       = self.terminal_memory[batch].to(self.output_device)
 
-        return states, actions, rewards, next_states, dones
+                if dones.any():
+                    pass
+                    # Try again if there are any dones in the sequence.
+                else:
+                    batch_states.append(states)
+                    batch_next_states.append(next_states)
+                    batch_actions.append(actions)
+                    batch_rewards.append(rewards)
+                    batch_dones.append(dones)
+                    break
+
+
+        return (torch.stack(batch_states).to(self.output_device), 
+                torch.stack(batch_actions).to(self.output_device), 
+                torch.stack(batch_rewards).to(self.output_device), 
+                torch.stack(batch_next_states).to(self.output_device), 
+                torch.stack(batch_dones).to(self.output_device)
+                )
     
 
     def print_stats(self):
