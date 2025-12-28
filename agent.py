@@ -132,7 +132,7 @@ class Agent:
             self.collect_dataset(50)
             loss = self.train_encoder(50, batch_size=16, sequence_length=16)
 
-            print(f"Loss: {loss}, Recon Loss: {recon_loss}")
+            print(f"Loss: {loss}")
 
 
 
