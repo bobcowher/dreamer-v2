@@ -1,0 +1,12 @@
+numpy
+tensorboard
+matplotlib
+gymnasium[box2d]
+minigrid
+miniworld
+opencv-python
+--extra-index-url https://download.pytorch.org/whl/cu129
+#--extra-index-url https://download.pytorch.org/whl/cu118
+torch
+torchvision
+torchaudio
