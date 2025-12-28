@@ -77,6 +77,8 @@ class Agent:
             # 4 — loss & optimise
             # Normalize observations for comparison with reconstruction
             obs_normalized = obs_flat.float() / 255.0
+            # print(f"Recon: {type(recon)}")
+            # print(f"Obs Norm: {type(obs_normalized)}")
             loss = F.mse_loss(obs_normalized, recon)
             # writer.add_scalar("Stats/model_loss", loss.item(), total_steps)
 

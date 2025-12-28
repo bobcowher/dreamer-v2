@@ -99,8 +99,12 @@ class Encoder(BaseModel):
     
     def decode(self, x):
         x = self._deconv_forward(x)
+        return x
 
     def forward(self, x):
+        # print(f"Type coming in: {type(x)}")
         embed = self.encode(x)
+        # print(f"Embed type: {type(embed)}")
         recon = self.decode(embed)
+        # print(f"Recon type: {type(recon)}")
         return recon, embed
