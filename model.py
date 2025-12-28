@@ -26,7 +26,7 @@ class BaseModel(nn.Module):
             print(f"Error loading model from {filename}: {e}")
 
 
-class VAE(BaseModel):
+class Encoder(BaseModel):
 
     def __init__(self, observation_shape=()):
         super().__init__()
@@ -51,13 +51,13 @@ class VAE(BaseModel):
         # conv_output = self._conv_forward(torch.zeros(1, *observation_shape))
         # conv_output_dim = conv_output.shape[-1]
 
-        latent_dim = 64  # or whatever you pick
+        embed_dim = 64  # or whatever you pick
 
         # self.fc_enc = nn.Linear(self.flattened_dim, latent_dim)
         # self.fc_dec = nn.Linear(latent_dim, self.flattened_dim)
-        self.fc_mu = nn.Linear(self.flattened_dim, latent_dim)
-        self.fc_logvar = nn.Linear(self.flattened_dim, latent_dim)
-        self.fc_dec = nn.Linear(latent_dim, self.flattened_dim)
+
+        self.fc_enc = nn.Linear(self.flattened_dim, embed_dim)  # ADD THIS
+        self.fc_dec = nn.Linear(embed_dim, self.flattened_dim)
 
         self.deconv1 = nn.ConvTranspose2d(256, 128, kernel_size=4, stride=2, padding=1)
         self.deconv2 = nn.ConvTranspose2d(128, 64, kernel_size=4, stride=2, padding=1)
@@ -67,11 +67,6 @@ class VAE(BaseModel):
 
         print(f"VAE network initialized. Input shape: {observation_shape}")
 
-
-    def _reparameterize(self, mu, logvar):
-        std = torch.exp(0.5 * logvar)
-        eps = torch.randn_like(std)
-        return mu + eps * std
 
     def _conv_features(self, x):
         # Convert uint8 to float if needed (for initialization)
@@ -99,34 +94,13 @@ class VAE(BaseModel):
         
     def encode(self, x):
         # x: (B,3,H,W) in [0,1]
-        with torch.no_grad():
-            x = self._conv_forward(x)
-            mu = self.fc_mu(x)
-            logvar = self.fc_logvar(x)
-            z = self._reparameterize(mu, logvar)
-        return z
-    
-    def forward(self, x):
-        # Ensure input is uint8 tensor in [0,255] range
-        assert x.dtype == torch.uint8, f"Expected uint8 input, got {x.dtype}"
-        
-        # Add batch dimension if missing
-        if x.dim() == 3:
-            x = x.unsqueeze(0)
-        
-        x = x.float() / 255.0
         x = self._conv_forward(x)
-
-        mu = self.fc_mu(x)
-        logvar = self.fc_logvar(x)
-
-        z = self._reparameterize(mu, logvar)
-
-        x = F.relu(self.fc_dec(z))
-
+        return x
+    
+    def decode(self, x):
         x = self._deconv_forward(x)
 
-        recon = torch.sigmoid(x)
-
-        return recon, mu, logvar, z
-
+    def forward(self, x):
+        embed = self.encode(x)
+        recon = self.decode(embed)
+        return recon, embed

@@ -3,7 +3,7 @@ import cv2
 import torch
 import numpy as np
 from buffer import ReplayBuffer
-from model import VAE
+from model import Encoder
 import torch.nn.functional as F
 
 class Agent:
@@ -20,8 +20,8 @@ class Agent:
         
         observation, info = self.env.reset(seed=42)
         
-        self.vae = VAE(observation_shape=obs.shape).to(self.device)
-        self.vae_optimizer = torch.optim.Adam(self.vae.parameters(), learning_rate) 
+        self.encoder = Encoder(observation_shape=obs.shape).to(self.device)
+        self.encoder_optimizer = torch.optim.Adam(self.encoder.parameters(), learning_rate) 
 
         # print(self.env.action_space.shape)
 
@@ -54,9 +54,10 @@ class Agent:
         return obs 
     
 
-    def train_vae(self,
+    def train_encoder(self,
                   epochs : int,
-                  batch_size: int):
+                  batch_size: int,
+                  sequence_length: int):
 
         total_recon_loss = 0
         total_loss       = 0
@@ -64,39 +65,32 @@ class Agent:
         for epoch in range(epochs):
 
             # 1 — sample & reshape
-            observations, _, _, _, _ = self.memory.sample_buffer(batch_size)
+            obs, _, _, _, _ = self.memory.sample_buffer(batch_size, sequence_length)
 
+            obs_flat = obs.view(batch_size * sequence_length, *obs.shape[2:]) 
             # 2 — Q(s,a) with the online network
-            recon, mu, logvar, z = self.vae(observations)
+            recon, embed = self.encoder(obs_flat)
 
             # print("Obs:", type(observations))
             # print("Pred:", type(predicted_observations))
             #
             # 4 — loss & optimise
             # Normalize observations for comparison with reconstruction
-            observations_normalized = observations.float() / 255.0
-            recon_loss = F.mse_loss(observations_normalized, recon)
+            obs_normalized = obs_flat.float() / 255.0
+            loss = F.mse_loss(obs_normalized, recon)
             # writer.add_scalar("Stats/model_loss", loss.item(), total_steps)
-            kl = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp(), dim=1).mean()
 
-            beta = 1e-4
-
-            loss = recon_loss + beta * kl
-
-            self.vae_optimizer.zero_grad()
+            self.encoder_optimizer.zero_grad()
             loss.backward()
-            self.vae_optimizer.step()
+            self.encoder_optimizer.step()
 
-            print(f"VAE Recon Loss: {recon_loss.item()}")
-            print(f"VAE Loss {loss.item()}")
+            print(f"Encoder Loss {loss.item()}")
 
-            total_recon_loss += recon_loss.item()
             total_loss += loss.item()
 
-        avg_recon_loss = total_recon_loss / epochs
-        ave_loss       = total_loss / epochs
+        ave_loss = total_loss / epochs
 
-        return ave_loss, avg_recon_loss
+        return ave_loss
 
 
     def collect_dataset(self, 
@@ -134,7 +128,7 @@ class Agent:
 
         for _ in range(epochs):
             self.collect_dataset(50)
-            loss, recon_loss = self.train_vae(50, batch_size=64)
+            loss, recon_loss = self.train_encoder(50, batch_size=16, sequence_length=16)
 
             print(f"Loss: {loss}, Recon Loss: {recon_loss}")
 
