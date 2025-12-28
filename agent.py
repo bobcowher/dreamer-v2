@@ -130,7 +130,7 @@ class Agent:
 
         for _ in range(epochs):
             self.collect_dataset(50)
-            loss, recon_loss = self.train_encoder(50, batch_size=16, sequence_length=16)
+            loss = self.train_encoder(50, batch_size=16, sequence_length=16)
 
             print(f"Loss: {loss}, Recon Loss: {recon_loss}")
 
