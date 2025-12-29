@@ -143,6 +143,32 @@ class RSSM(nn.Module):
         return h_new, z_new 
 
 
+class RewardPredictor(nn.Module):
+    def __init__(self, feature_dim, hidden_dim=512):
+        super().__init__()
+        self.net = nn.Sequential(
+            nn.Linear(feature_dim, hidden_dim),
+            nn.ELU(),
+            nn.Linear(hidden_dim, 1),
+        )
+    
+    def forward(self, features):
+        return self.net(features).squeeze(-1)
+
+
+class ContinuePredictor(nn.Module):
+    def __init__(self, feature_dim, hidden_dim=512):
+        super().__init__()
+        self.net = nn.Sequential(
+            nn.Linear(feature_dim, hidden_dim),
+            nn.ELU(),
+            nn.Linear(hidden_dim, 1),
+        )
+    
+    def forward(self, features):
+        return self.net(features).squeeze(-1)
+
+
 if __name__ == "__main__":
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     
