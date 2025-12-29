@@ -22,6 +22,8 @@ class RSSM(nn.Module):
         self.stoch_dim = stoch_dim
         self.stoch_classes = stoch_classes
         self.stoch_flat = stoch_dim * stoch_classes  # 1024
+
+        self.device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
         
         # TODO: Define layers
         # 1. pre_gru: projects (h, z, a) → GRU input
@@ -44,10 +46,10 @@ class RSSM(nn.Module):
             nn.Linear(hidden_dim, self.stoch_flat),
         )
 
-    def initial_state(self, batch_size: int, device: torch.device):
+    def initial_state(self, batch_size: int):
         """Return zeros for (h, z)."""
-        h = torch.zeros(batch_size, self.hidden_dim, device=device)
-        z = torch.zeros(batch_size, self.stoch_flat, device=device)
+        h = torch.zeros(batch_size, self.hidden_dim, device=self.device)
+        z = torch.zeros(batch_size, self.stoch_flat, device=self.device)
         return h, z
 
 
@@ -88,6 +90,24 @@ class RSSM(nn.Module):
         
         return h_new, z_new, prior_logits, post_logits
 
+
+    def observe_sequence(self, actions, embeds):
+        """
+        Process a full sequence with observations.
+        
+        Args:
+            actions: (B, T, action_dim)
+            embeds:  (B, T, embed_dim)
+        
+        Returns:
+            h_all:         (B, T, hidden_dim)
+            z_all:         (B, T, stoch_flat)
+            prior_all:     (B, T, stoch_flat)
+            posterior_all: (B, T, stoch_flat)
+        """
+        batch_size = 32
+
+        h, z = self.initial_state(batch_size=batch_size)
 
 
     def imagine_step(self, h, z, action):
@@ -134,6 +154,24 @@ if __name__ == "__main__":
     # Test gradients flow
     loss = z_new.sum()
     loss.backward()
+
     print(f"Gradients OK: {rssm.post_net[0].weight.grad is not None}")
     
     print("\nAll shapes correct!")
+    # Test observe_sequence
+    print("\n--- Testing observe_sequence ---")
+    B, T = 4, 16
+    actions = torch.randn(B, T, action_dim, device=device)
+    embeds = torch.randn(B, T, embed_dim, device=device)
+
+    h_all, z_all, prior_all, post_all = rssm.observe_sequence(actions, embeds)
+
+    print(f"h_all: {h_all.shape}")       # Expected: (4, 16, 512)
+    print(f"z_all: {z_all.shape}")       # Expected: (4, 16, 1024)
+    print(f"prior_all: {prior_all.shape}")   # Expected: (4, 16, 1024)
+    print(f"post_all: {post_all.shape}")     # Expected: (4, 16, 1024)
+
+    # Verify gradients flow through time
+    loss = z_all.sum()
+    loss.backward()
+    print(f"Gradients through sequence: {rssm.gru.weight_hh.grad is not None}")
