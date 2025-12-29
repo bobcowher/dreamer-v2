@@ -5,6 +5,9 @@ import numpy as np
 from buffer import ReplayBuffer
 from model import Encoder
 import torch.nn.functional as F
+from torch.utils.tensorboard import SummaryWriter
+import datetime
+import visualize
 
 class Agent:
 
@@ -28,6 +31,10 @@ class Agent:
         self.memory = ReplayBuffer(max_size=max_buffer_size, input_shape=obs.shape, n_actions=self.env.action_space.shape[0], input_device=self.device, output_device=self.device)
         
         self.left_bias = True
+
+        summary_writer_name = f'runs/{datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")}'
+        self.summary_writer = SummaryWriter(summary_writer_name)
+        self.total_steps = 0
 
         pass
 
@@ -80,7 +87,7 @@ class Agent:
             # print(f"Recon: {type(recon)}")
             # print(f"Obs Norm: {type(obs_normalized)}")
             loss = F.mse_loss(obs_normalized, recon)
-            # writer.add_scalar("Stats/model_loss", loss.item(), total_steps)
+            self.summary_writer.add_scalar("Stats/Encoder Loss", loss.item(), self.total_steps)
 
             self.encoder_optimizer.zero_grad()
             loss.backward()
@@ -89,6 +96,8 @@ class Agent:
             print(f"Encoder Loss {loss.item()}")
 
             total_loss += loss.item()
+
+            self.total_steps += 1
 
         ave_loss = total_loss / epochs
 
@@ -129,11 +138,11 @@ class Agent:
     def train(self, epochs=0):
 
         for _ in range(epochs):
-            self.collect_dataset(50)
+            self.collect_dataset(10)
             loss = self.train_encoder(50, batch_size=16, sequence_length=16)
 
             print(f"Loss: {loss}")
-
+            visualize.visualize_reconstruction(self.encoder, self.memory, num_samples=4)
 
 
             
