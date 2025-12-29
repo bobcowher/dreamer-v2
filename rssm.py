@@ -77,12 +77,12 @@ class RSSM(nn.Module):
 
     def observe_step(self, h, z, action, embed):
         """Single step with observation (training)."""
-        x = self.pre_gru(torch.cat([h, z, action]))
+        x = self.pre_gru(torch.cat([h, z, action], dim=-1))
 
         h_new = self.gru(x, h)
         prior_logits = self.prior_net(h_new)
 
-        post_logits = self.post_net(torch.cat([h_new, embed]), dim=-1)
+        post_logits = self.post_net(torch.cat([h_new, embed], dim=-1))
 
         z_new = self.sample_stochastic(post_logits) 
         
@@ -92,4 +92,48 @@ class RSSM(nn.Module):
 
     def imagine_step(self, h, z, action):
         """Single step without observation (imagination)."""
-        pass
+        x = self.pre_gru(torch.cat([h, z, action], dim=-1))
+
+        h_new = self.gru(x, h)
+        prior_logits = self.prior_net(h_new)
+
+        z_new = self.sample_stochastic(prior_logits) 
+        
+        return h_new, z_new 
+
+
+if __name__ == "__main__":
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    
+    # Config
+    B = 4           # batch size
+    action_dim = 3  # CarRacing: steer, gas, brake
+    embed_dim = 1024
+    
+    rssm = RSSM(action_dim=action_dim, embed_dim=embed_dim).to(device)
+    
+    # Init state
+    h, z = rssm.initial_state(B, device)
+    print(f"h: {h.shape}, z: {z.shape}")
+    # Expected: h: (4, 512), z: (4, 1024)
+    
+    # Fake inputs
+    action = torch.randn(B, action_dim, device=device)
+    embed = torch.randn(B, embed_dim, device=device)
+    
+    # Test observe_step
+    h_new, z_new, prior, post = rssm.observe_step(h, z, action, embed)
+    print(f"h_new: {h_new.shape}, z_new: {z_new.shape}")
+    print(f"prior: {prior.shape}, post: {post.shape}")
+    # Expected: all (4, 512) or (4, 1024)
+    
+    # Test imagine_step
+    h_imag, z_imag = rssm.imagine_step(h, z, action)
+    print(f"h_imag: {h_imag.shape}, z_imag: {z_imag.shape}")
+    
+    # Test gradients flow
+    loss = z_new.sum()
+    loss.backward()
+    print(f"Gradients OK: {rssm.post_net[0].weight.grad is not None}")
+    
+    print("\nAll shapes correct!")
