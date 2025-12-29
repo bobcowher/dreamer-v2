@@ -105,10 +105,31 @@ class RSSM(nn.Module):
             prior_all:     (B, T, stoch_flat)
             posterior_all: (B, T, stoch_flat)
         """
-        batch_size = 32
+        batch_size, sequence_length = actions.shape[:2]
+
+        h_all = []
+        z_all = []
+        prior_all = []
+        post_all = []
 
         h, z = self.initial_state(batch_size=batch_size)
 
+        for t in range(sequence_length):
+            h, z, prior_logits, post_logits = self.observe_step(h, z, actions[:, t], embeds[:, t])
+
+            h_all.append(h)
+            z_all.append(z)
+            prior_all.append(prior_logits)
+            post_all.append(post_logits)
+
+
+        return (torch.stack(h_all, dim=1),
+                torch.stack(z_all, dim=1), 
+                torch.stack(prior_all, dim=1),
+                torch.stack(post_all, dim=1)
+                )
+
+            
 
     def imagine_step(self, h, z, action):
         """Single step without observation (imagination)."""
@@ -133,7 +154,7 @@ if __name__ == "__main__":
     rssm = RSSM(action_dim=action_dim, embed_dim=embed_dim).to(device)
     
     # Init state
-    h, z = rssm.initial_state(B, device)
+    h, z = rssm.initial_state(B)
     print(f"h: {h.shape}, z: {z.shape}")
     # Expected: h: (4, 512), z: (4, 1024)
     
