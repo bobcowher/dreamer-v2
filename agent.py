@@ -1,9 +1,11 @@
 import gymnasium as gym
 import cv2
+from gymnasium.spaces import sequence
 import torch
 import numpy as np
 from buffer import ReplayBuffer
 from model import Encoder
+from world_model import WorldModel
 import torch.nn.functional as F
 from torch.utils.tensorboard import SummaryWriter
 import datetime
@@ -23,8 +25,11 @@ class Agent:
         
         observation, info = self.env.reset(seed=42)
         
-        self.encoder = Encoder(observation_shape=obs.shape).to(self.device)
-        self.encoder_optimizer = torch.optim.Adam(self.encoder.parameters(), learning_rate) 
+        # self.encoder = Encoder(observation_shape=obs.shape).to(self.device)
+        # self.encoder_optimizer = torch.optim.Adam(self.encoder.parameters(), learning_rate) 
+
+        self.world_model = WorldModel(obs_shape=obs.shape, action_dim=self.env.action_space.shape[0]).to(self.device)
+        self.world_model_optimizer = torch.optim.Adam(self.world_model.parameters(), learning_rate)
 
         # print(self.env.action_space.shape)
 
@@ -59,7 +64,21 @@ class Agent:
         obs = cv2.resize(obs, (64, 64), interpolation=cv2.INTER_NEAREST)
         obs = torch.from_numpy(obs).permute(2, 0, 1).to(self.device)
         return obs 
+
     
+    def train_world_model(self, epochs, batch_size, sequence_length):
+       for _ in range(epochs):
+           obs, actions, rewards, next_obs, dones = self.memory.sample_buffer(batch_size, sequence_length)
+           
+           continues = 1.0 - dones.float()  # Convert dones to continues
+            
+           loss, loss_dict = self.world_model.compute_loss(obs, actions, rewards, continues)
+            
+           self.world_model_optimizer.zero_grad()
+           loss.backward()
+           self.world_model_optimizer.step()
+            
+           print(f"Loss: {loss_dict}")   
 
     def train_encoder(self,
                   epochs : int,
@@ -139,10 +158,10 @@ class Agent:
 
         for _ in range(epochs):
             self.collect_dataset(10)
-            loss = self.train_encoder(50, batch_size=16, sequence_length=16)
+            loss = self.train_world_model(epochs=50, batch_size=16, sequence_length=16)
 
-            print(f"Loss: {loss}")
-            visualize.visualize_reconstruction(self.encoder, self.memory, num_samples=4)
+            # print(f"Loss: {loss}")
+            # visualize.visualize_reconstruction(self.encoder, self.memory, num_samples=4)
 
 
             

@@ -123,3 +123,39 @@ class WorldModel(nn.Module):
             "kl": kl_loss.item(),
             "total": total_loss.item(),
         }
+
+
+if __name__ == "__main__":
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    
+    # Config
+    obs_shape = (3, 64, 64)
+    action_dim = 3
+    B, T = 4, 16
+    
+    # Create model
+    model = WorldModel(obs_shape, action_dim).to(device)
+    print(f"WorldModel created on {device}")
+    print(f"Parameters: {sum(p.numel() for p in model.parameters()):,}")
+    
+    # Fake batch
+    obs = torch.randint(0, 256, (B, T, *obs_shape), dtype=torch.uint8, device=device)
+    actions = torch.randn(B, T, action_dim, device=device)
+    rewards = torch.randn(B, T, device=device)
+    continues = torch.ones(B, T, device=device)
+    
+    # Test forward
+    print("\n--- Testing forward ---")
+    outputs = model(obs, actions)
+    print(f"h: {outputs['h'].shape}")              # (4, 16, 512)
+    print(f"z: {outputs['z'].shape}")              # (4, 16, 1024)
+    print(f"reward_pred: {outputs['reward_pred'].shape}")  # (4, 16)
+    
+    # Test loss
+    print("\n--- Testing compute_loss ---")
+    loss, loss_dict = model.compute_loss(obs, actions, rewards, continues)
+    print(f"Losses: {loss_dict}")
+    
+    # Test gradients
+    loss.backward()
+    print(f"Gradients OK: {model.encoder.fc_enc.weight.grad is not None}")

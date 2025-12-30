@@ -75,6 +75,7 @@ class Encoder(BaseModel):
     def forward(self, x):
         # x: (B,3,H,W) in [0,1]
         x = self._conv_forward(x)
+        x = self.fc_enc(x)
         return x
     
 
@@ -103,8 +104,10 @@ class Decoder(BaseModel):
        
         return x
 
-    def decode(self, x):
+    def forward(self, x):
         x = self.fc_dec(x)
         x = self._deconv_forward(x)
+        x = torch.sigmoid(x)
         return x
+
 
