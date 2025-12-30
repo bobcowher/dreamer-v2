@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from model import Encoder  # Your encoder/decoder
+from model import Encoder, Decoder  # Your encoder/decoder
 from rssm import RSSM, RewardPredictor, ContinuePredictor
 
 
@@ -18,6 +18,8 @@ class WorldModel(nn.Module):
         super().__init__()
         
         self.encoder = Encoder(observation_shape=obs_shape)
+        self.decoder = Decoder(observation_shape=obs_shape)
+
         self.rssm = RSSM(action_dim, embed_dim, hidden_dim, stoch_dim, stoch_classes)
         
         feature_dim = hidden_dim + (stoch_dim * stoch_classes)  # h + z
@@ -41,7 +43,7 @@ class WorldModel(nn.Module):
         
         # Encode all observations
         obs_flat = obs.view(batch_size * sequence_length, *obs.shape[2:])
-        embed_flat = self.encoder.encode(obs_flat)  # Your encoder returns (embed, recon)
+        embed_flat = self.encoder(obs_flat)  # Your encoder returns (embed, recon)
         embeds = embed_flat.view(batch_size, sequence_length, -1)
         
         # Run RSSM
@@ -92,7 +94,7 @@ class WorldModel(nn.Module):
         # 1. Reconstruction loss — decode from (h, z), compare to obs
         features = torch.cat([outputs["h"], outputs["z"]], dim=-1)
         features_flat = features.view(batch_size * seq_len, -1)
-        recon = self.encoder.decode(features_flat)
+        recon = self.decoder(features_flat)
         recon = recon.view(batch_size, seq_len, *obs.shape[2:])
         
         obs_normalized = obs.float() / 255.0

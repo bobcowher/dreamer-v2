@@ -28,7 +28,7 @@ class BaseModel(nn.Module):
 
 class Encoder(BaseModel):
 
-    def __init__(self, observation_shape=()):
+    def __init__(self, observation_shape=(), embed_dim=1024):
         super().__init__()
 
         # print(observation_shape[-1])
@@ -48,25 +48,13 @@ class Encoder(BaseModel):
             self.flattened_dim = feats.numel() // 1    # C_enc * H_enc * W_enc
             print(f"Conv output shape: {feats.shape}, flattened dim: {self.flattened_dim}")
 
-        # conv_output = self._conv_forward(torch.zeros(1, *observation_shape))
-        # conv_output_dim = conv_output.shape[-1]
-
-        embed_dim = 64  # or whatever you pick
-
-        # self.fc_enc = nn.Linear(self.flattened_dim, latent_dim)
-        # self.fc_dec = nn.Linear(latent_dim, self.flattened_dim)
-
         self.fc_enc = nn.Linear(self.flattened_dim, embed_dim)  # ADD THIS
-        self.fc_dec = nn.Linear(embed_dim, self.flattened_dim)
-
-        self.deconv1 = nn.ConvTranspose2d(256, 128, kernel_size=4, stride=2, padding=1)
-        self.deconv2 = nn.ConvTranspose2d(128, 64, kernel_size=4, stride=2, padding=1)
-        self.deconv3 = nn.ConvTranspose2d(64, 32, kernel_size=4, stride=2, padding=1)
-        self.deconv4 = nn.ConvTranspose2d(32, observation_shape[0], kernel_size=4, stride=2, padding=1)
         # self.conv3 = nn.Conv2d()
 
         print(f"VAE network initialized. Input shape: {observation_shape}")
 
+    def get_output_shape(self):
+        return self.conv_output_shape
 
     def _conv_features(self, x):
         # Convert uint8 to float if needed (for initialization)
@@ -83,6 +71,29 @@ class Encoder(BaseModel):
         x = self.flatten(x)
         return x
 
+        
+    def forward(self, x):
+        # x: (B,3,H,W) in [0,1]
+        x = self._conv_forward(x)
+        return x
+    
+
+
+class Decoder(BaseModel):
+
+    def __init__(self, observation_shape=(), embed_dim=1536, conv_output_shape=[]):
+        super().__init__()
+        
+        self.fc_dec = nn.Linear(embed_dim, 4096)
+
+        self.conv_output_shape = (256, 4, 4) 
+
+        self.deconv1 = nn.ConvTranspose2d(256, 128, kernel_size=4, stride=2, padding=1)
+        self.deconv2 = nn.ConvTranspose2d(128, 64, kernel_size=4, stride=2, padding=1)
+        self.deconv3 = nn.ConvTranspose2d(64, 32, kernel_size=4, stride=2, padding=1)
+        self.deconv4 = nn.ConvTranspose2d(32, observation_shape[0], kernel_size=4, stride=2, padding=1)
+
+    
     def _deconv_forward(self, x):
         x = x.view(-1, *self.conv_output_shape)
         x = F.relu(self.deconv1(x))
@@ -91,20 +102,9 @@ class Encoder(BaseModel):
         x = F.relu(self.deconv4(x))
        
         return x
-        
-    def encode(self, x):
-        # x: (B,3,H,W) in [0,1]
-        x = self._conv_forward(x)
-        return x
-    
+
     def decode(self, x):
+        x = self.fc_dec(x)
         x = self._deconv_forward(x)
         return x
 
-    def forward(self, x):
-        # print(f"Type coming in: {type(x)}")
-        embed = self.encode(x)
-        # print(f"Embed type: {type(embed)}")
-        recon = self.decode(embed)
-        # print(f"Recon type: {type(recon)}")
-        return recon, embed
