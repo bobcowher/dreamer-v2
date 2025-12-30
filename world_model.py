@@ -13,18 +13,19 @@ class WorldModel(nn.Module):
         hidden_dim=512,
         stoch_dim=32,
         stoch_classes=32,
-        embed_dim=64,
+        embed_dim=1024,     # Match encoder output
     ):
         super().__init__()
         
-        self.encoder = Encoder(observation_shape=obs_shape)
-        self.decoder = Decoder(observation_shape=obs_shape)
+        self.encoder = Encoder(observation_shape=obs_shape, embed_dim=embed_dim)
+        
+        # Calculate feature dimension for decoder
+        feature_dim = hidden_dim + (stoch_dim * stoch_classes)  # h + z
+        self.decoder = Decoder(observation_shape=obs_shape, embed_dim=feature_dim)
 
         self.embed_dim = embed_dim
 
         self.rssm = RSSM(action_dim, embed_dim, hidden_dim, stoch_dim, stoch_classes)
-        
-        feature_dim = hidden_dim + (stoch_dim * stoch_classes)  # h + z
         
         self.reward_pred = RewardPredictor(feature_dim)
         self.continue_pred = ContinuePredictor(feature_dim)

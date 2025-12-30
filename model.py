@@ -85,9 +85,11 @@ class Decoder(BaseModel):
     def __init__(self, observation_shape=(), embed_dim=1536, conv_output_shape=[]):
         super().__init__()
         
-        self.fc_dec = nn.Linear(embed_dim, 4096)
-
-        self.conv_output_shape = (256, 4, 4) 
+        # Calculate the required output size dynamically
+        self.conv_output_shape = (256, 4, 4)
+        conv_flat_size = 256 * 4 * 4  # 4096
+        
+        self.fc_dec = nn.Linear(embed_dim, conv_flat_size) 
 
         self.deconv1 = nn.ConvTranspose2d(256, 128, kernel_size=4, stride=2, padding=1)
         self.deconv2 = nn.ConvTranspose2d(128, 64, kernel_size=4, stride=2, padding=1)
