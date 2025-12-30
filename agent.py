@@ -68,6 +68,7 @@ class Agent:
     
     def train_world_model(self, epochs, batch_size, sequence_length):
        
+        total_loss = 0
 
         for _ in range(epochs):
             obs, actions, rewards, next_obs, dones = self.memory.sample_buffer(batch_size, sequence_length)
@@ -76,13 +77,23 @@ class Agent:
             
             loss, loss_dict = self.world_model.compute_loss(obs, actions, rewards, continues)
             
+            total_loss += loss.item()
+            
             self.world_model_optimizer.zero_grad()
             loss.backward()
             self.world_model_optimizer.step()
             
-            self.summary_writer.add_scalar("Stats/World Model Loss", loss.item(), self.total_steps)
+            self.summary_writer.add_scalar("Loss/recon", loss_dict["recon"], self.total_steps)
+            self.summary_writer.add_scalar("Loss/reward", loss_dict["reward"], self.total_steps)
+            self.summary_writer.add_scalar("Loss/continue", loss_dict["continue"], self.total_steps)
+            self.summary_writer.add_scalar("Loss/kl", loss_dict["kl"], self.total_steps)
+
+            self.total_steps += 1
+
+        avg_loss = total_loss / epochs
+
+        return avg_loss
             
-           # print(f"Loss: {loss_dict}")   
 
 
     def train_encoder(self,
@@ -156,7 +167,7 @@ class Agent:
 
             # print(f"Completed episode {episode} with score {episode_reward}")
 
-            self.memory.print_stats()
+            # self.memory.print_stats()
 
 
     def train(self, epochs=0):
@@ -166,7 +177,7 @@ class Agent:
             loss = self.train_world_model(epochs=50, batch_size=16, sequence_length=16)
 
             print(f"Loss: {loss}")
-            # visualize.visualize_reconstruction(self.encoder, self.memory, num_samples=4)
+            visualize.visualize_reconstruction(self.world_model, self.memory, num_samples=4)
 
 
             

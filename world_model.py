@@ -13,12 +13,14 @@ class WorldModel(nn.Module):
         hidden_dim=512,
         stoch_dim=32,
         stoch_classes=32,
-        embed_dim=1024,
+        embed_dim=64,
     ):
         super().__init__()
         
         self.encoder = Encoder(observation_shape=obs_shape)
         self.decoder = Decoder(observation_shape=obs_shape)
+
+        self.embed_dim = embed_dim
 
         self.rssm = RSSM(action_dim, embed_dim, hidden_dim, stoch_dim, stoch_classes)
         

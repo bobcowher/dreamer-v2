@@ -3,15 +3,26 @@ import numpy as np
 import cv2
 
 
-def visualize_reconstruction(encoder, memory, num_samples=4, filename="recon_check.png"):
+def visualize_reconstruction(world_model, memory, num_samples=4, filename="recon_check.png"):
     """
     Save a grid comparing original images (top row) vs reconstructions (bottom row).
     """
-    obs, _, _, _, _ = memory.sample_buffer(num_samples, sequence_length=1)
+    obs, actions, _, _, _ = memory.sample_buffer(num_samples, sequence_length=1)
     obs_flat = obs.view(num_samples, *obs.shape[2:])
+    actions_flat = actions.view(num_samples, *actions.shape[2:])
     
     with torch.no_grad():
-        recon, _ = encoder(obs_flat)
+        # Encode observations
+        embed = world_model.encoder(obs_flat)
+        embeds = embed.view(num_samples, 1, -1)
+        
+        # Get states from RSSM
+        h_all, z_all, _, _ = world_model.rssm.observe_sequence(actions, embeds)
+        
+        # Decode from features
+        features = torch.cat([h_all, z_all], dim=-1)
+        features_flat = features.view(num_samples, -1)
+        recon = world_model.decoder(features_flat)
     
     # Convert to numpy HWC format
     originals = obs_flat.permute(0, 2, 3, 1).cpu().numpy()  # (N, H, W, C)
