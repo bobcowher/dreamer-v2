@@ -67,18 +67,23 @@ class Agent:
 
     
     def train_world_model(self, epochs, batch_size, sequence_length):
-       for _ in range(epochs):
-           obs, actions, rewards, next_obs, dones = self.memory.sample_buffer(batch_size, sequence_length)
+       
+
+        for _ in range(epochs):
+            obs, actions, rewards, next_obs, dones = self.memory.sample_buffer(batch_size, sequence_length)
            
-           continues = 1.0 - dones.float()  # Convert dones to continues
+            continues = 1.0 - dones.float()  # Convert dones to continues
             
-           loss, loss_dict = self.world_model.compute_loss(obs, actions, rewards, continues)
+            loss, loss_dict = self.world_model.compute_loss(obs, actions, rewards, continues)
             
-           self.world_model_optimizer.zero_grad()
-           loss.backward()
-           self.world_model_optimizer.step()
+            self.world_model_optimizer.zero_grad()
+            loss.backward()
+            self.world_model_optimizer.step()
             
-           print(f"Loss: {loss_dict}")   
+            self.summary_writer.add_scalar("Stats/World Model Loss", loss.item(), self.total_steps)
+            
+           # print(f"Loss: {loss_dict}")   
+
 
     def train_encoder(self,
                   epochs : int,
@@ -112,7 +117,7 @@ class Agent:
             loss.backward()
             self.encoder_optimizer.step()
 
-            print(f"Encoder Loss {loss.item()}")
+            # print(f"Encoder Loss {loss.item()}")
 
             total_loss += loss.item()
 
@@ -149,7 +154,7 @@ class Agent:
             
             self.left_bias = not self.left_bias
 
-            print(f"Completed episode {episode} with score {episode_reward}")
+            # print(f"Completed episode {episode} with score {episode_reward}")
 
             self.memory.print_stats()
 
@@ -160,7 +165,7 @@ class Agent:
             self.collect_dataset(10)
             loss = self.train_world_model(epochs=50, batch_size=16, sequence_length=16)
 
-            # print(f"Loss: {loss}")
+            print(f"Loss: {loss}")
             # visualize.visualize_reconstruction(self.encoder, self.memory, num_samples=4)
 
 
