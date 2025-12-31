@@ -100,43 +100,33 @@ class Agent:
                   epochs : int,
                   batch_size: int,
                   sequence_length: int):
+        total_loss = 0
 
-        total_recon_loss = 0
-        total_loss       = 0
+        for _ in range(epochs):
+            obs, actions, rewards, next_obs, dones = self.memory.sample_buffer(batch_size, sequence_length)
+           
+            obs_flat = obs.view(batch_size * sequence_length, *obs.shape[2:]).float()
 
-        for epoch in range(epochs):
+            continues = 1.0 - dones.float()  # Convert dones to continues
 
-            # 1 — sample & reshape
-            obs, _, _, _, _ = self.memory.sample_buffer(batch_size, sequence_length)
+            embed = self.world_model.encoder(obs_flat)
+            padded = F.pad(embed, (0, 512))  # 1024 → 1536
+            recon = self.world_model.decoder(padded)
 
-            obs_flat = obs.view(batch_size * sequence_length, *obs.shape[2:]) 
-            # 2 — Q(s,a) with the online network
-            recon, embed = self.encoder(obs_flat)
-
-            # print("Obs:", type(observations))
-            # print("Pred:", type(predicted_observations))
-            #
-            # 4 — loss & optimise
-            # Normalize observations for comparison with reconstruction
-            obs_normalized = obs_flat.float() / 255.0
-            # print(f"Recon: {type(recon)}")
-            # print(f"Obs Norm: {type(obs_normalized)}")
-            loss = F.mse_loss(obs_normalized, recon)
-            self.summary_writer.add_scalar("Stats/Encoder Loss", loss.item(), self.total_steps)
-
-            self.encoder_optimizer.zero_grad()
-            loss.backward()
-            self.encoder_optimizer.step()
-
-            # print(f"Encoder Loss {loss.item()}")
-
+            loss = F.mse_loss(obs_flat, recon)
+            
             total_loss += loss.item()
-
+            
+            self.world_model_optimizer.zero_grad()
+            loss.backward()
+            self.world_model_optimizer.step()
+            
             self.total_steps += 1
 
-        ave_loss = total_loss / epochs
+        avg_loss = total_loss / epochs
 
-        return ave_loss
+        return avg_loss
+
 
 
     def collect_dataset(self, 
@@ -175,7 +165,8 @@ class Agent:
         for _ in range(epochs):
             self.collect_dataset(10)
             loss = self.train_world_model(epochs=50, batch_size=16, sequence_length=16)
-
+            #
+            # loss = self.train_encoder(epochs=50, batch_size=16, sequence_length=16)
             print(f"Loss: {loss}")
             visualize.visualize_reconstruction(self.world_model, self.memory, num_samples=4)
 

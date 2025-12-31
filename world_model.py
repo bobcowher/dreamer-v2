@@ -117,7 +117,7 @@ class WorldModel(nn.Module):
             outputs["post_logits"]
         )
         
-        total_loss = recon_loss + reward_loss + continue_loss + kl_loss
+        total_loss = recon_loss + reward_loss + continue_loss + 0.1 * kl_loss
         
         return total_loss, {
             "recon": recon_loss.item(),
