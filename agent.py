@@ -4,7 +4,7 @@ from gymnasium.spaces import sequence
 import torch
 import numpy as np
 from buffer import ReplayBuffer
-from model import Encoder
+from encoder import Encoder
 from world_model import WorldModel
 import torch.nn.functional as F
 from torch.utils.tensorboard import SummaryWriter

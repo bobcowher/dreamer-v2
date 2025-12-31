@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from model import Encoder, Decoder  # Your encoder/decoder
+from encoder import Encoder, Decoder  # Your encoder/decoder
 from rssm import RSSM, RewardPredictor, ContinuePredictor
 
 
