@@ -8,6 +8,7 @@ from encoder import Encoder
 from world_model import WorldModel
 import torch.nn.functional as F
 from torch.utils.tensorboard import SummaryWriter
+from actor_critic import Actor, Critic
 import datetime
 import visualize
 
@@ -24,16 +25,33 @@ class Agent:
         obs = self.process_observation(obs)
         
         observation, info = self.env.reset(seed=42)
+
+        feature_dim = 1536
+        hidden_dim = 512
         
         # self.encoder = Encoder(observation_shape=obs.shape).to(self.device)
         # self.encoder_optimizer = torch.optim.Adam(self.encoder.parameters(), learning_rate) 
+        num_actions = self.env.action_space.shape[0] 
 
-        self.world_model = WorldModel(obs_shape=obs.shape, action_dim=self.env.action_space.shape[0]).to(self.device)
+        self.world_model = WorldModel(obs_shape=obs.shape, 
+                                      action_dim=num_actions).to(self.device)
         self.world_model_optimizer = torch.optim.Adam(self.world_model.parameters(), learning_rate)
 
+    #def __init__(self, feature_dim, num_actions, hidden_dim, action_space=None, checkpoint_dir='checkpoints', name='policy_network'):
+        self.actor = Actor(feature_dim=feature_dim, 
+                           num_actions=num_actions, 
+                           hidden_dim=hidden_dim).to(self.device)
+
+    # def __init__(self, feature_dim, hidden_dim, checkpoint_dir='checkpoints', name='critic_network'):
+        self.critic = Critic(feature_dim=feature_dim, 
+                             hidden_dim=hidden_dim).to(self.device)
         # print(self.env.action_space.shape)
 
-        self.memory = ReplayBuffer(max_size=max_buffer_size, input_shape=obs.shape, n_actions=self.env.action_space.shape[0], input_device=self.device, output_device=self.device)
+        self.memory = ReplayBuffer(max_size=max_buffer_size, 
+                                   input_shape=obs.shape, 
+                                   n_actions=num_actions, 
+                                   input_device=self.device, 
+                                   output_device=self.device)
         
         self.left_bias = True
 
@@ -41,7 +59,6 @@ class Agent:
         self.summary_writer = SummaryWriter(summary_writer_name)
         self.total_steps = 0
 
-        pass
 
     def __del__(self):
         self.env.close()
@@ -65,7 +82,72 @@ class Agent:
         obs = torch.from_numpy(obs).permute(2, 0, 1).to(self.device)
         return obs 
 
+    def imagine_trajectory(self, start_h, start_z, horizon):
+        """
+        Args:
+            start_h: (B, hidden_dim) — initial deterministic state
+            start_z: (B, stoch_flat) — initial stochastic state
+            horizon: int — steps to imagine
+        
+        Returns:
+            features: (B, H+1, feature_dim) — all states including start
+            actions:  (B, H, action_dim)
+            log_probs: (B, H)
+        """
+        h, z = start_h, start_z
+        
+        h_list = [h]
+        z_list = [z]
+        action_list = []
+        log_prob_list = []
+        
+        for _ in range(horizon):
+            features = torch.cat([h, z], dim=-1)
+            action, log_prob = self.actor.sample(features)
+            h, z = self.world_model.rssm.imagine_step(h, z, action)
+            
+            h_list.append(h)
+            z_list.append(z)
+            action_list.append(action)
+            log_prob_list.append(log_prob)
+
+       
+        h_all = torch.stack(h_list, dim=1)
+        z_all = torch.stack(z_list, dim=1)
+        features = torch.cat([h_all, z_all], dim=-1)
+        actions = torch.stack(action_list, dim=1)
+        log_probs = torch.stack(log_prob_list, dim=1)
+
+        return features, actions, log_probs
+        
+    # Stack into tensors
+    # features: concat all (h, z) pairs
+    # Return shapes for downstream loss computation
+    def compute_lambda_returns(self, rewards, values, gamma=0.99, lambda_=0.95):
+        """
+        Args:
+            rewards: (B, H) — predicted rewards from imagination
+            values:  (B, H+1) — predicted values (includes final state)
+        
+        Returns:
+            returns: (B, H) — λ-return targets for each timestep
+        """
+        B, H = rewards.shape
+        returns = torch.zeros_like(rewards)
+        
+        # Bootstrap from final value
+        next_return = values[:, -1]
+        
+        # Work backwards
+        for t in reversed(range(H)):
+            next_return = rewards[:, t] + gamma * (
+                (1 - lambda_) * values[:, t+1] + lambda_ * next_return
+            )
+            returns[:, t] = next_return
     
+        return returns
+    
+
     def train_world_model(self, epochs, batch_size, sequence_length):
        
         total_loss = 0
