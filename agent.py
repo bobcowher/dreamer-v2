@@ -177,49 +177,108 @@ class Agent:
         avg_loss = total_loss / epochs
 
         return avg_loss
+
+
+    def evaluate_policy(self, num_episodes=3):
+        total_reward = 0
+        
+        for _ in range(num_episodes):
+            obs, _ = self.env.reset()
+            obs = self.process_observation(obs)
+            done = False
+            episode_reward = 0
             
-    def train_actor_critic(self, batch_size=16, horizon=15):
+            # Need to maintain RSSM state
+            h, z = self.world_model.rssm.initial_state(1)
+            
+            while not done:
+                with torch.no_grad():
+                    # Encode observation
+                    obs_batch = obs.unsqueeze(0).unsqueeze(0)  # (1, 1, C, H, W)
+                    embed = self.world_model.encode(obs_batch)
+                    
+                    # Update RSSM state
+                    action_dummy = torch.zeros(1, 1, 3, device=self.device)
+                    h, z, _, _ = self.world_model.rssm.observe_sequence(action_dummy, embed)
+                    h, z = h[:, -1], z[:, -1]
+                    
+                    # Get action from policy
+                    features = torch.cat([h, z], dim=-1)
+                    action, _ = self.actor.sample(features)
+                    action = action.squeeze(0).cpu().numpy()
+                
+                obs, reward, done, truncated, _ = self.env.step(action)
+                obs = self.process_observation(obs)
+                done = done or truncated
+                episode_reward += float(reward)
+            
+            total_reward += episode_reward
+            # print(f"Episode reward: {episode_reward}")
+        
+        avg_reward = total_reward / num_episodes
+        print(f"Average reward: {avg_reward}")
+        return avg_reward
+                
+    def train_actor_critic(self, epochs=1, batch_size=16, horizon=15):
         """
         Train actor and critic on imagined trajectories.
         
         Returns:
             dict with actor_loss, critic_loss
         """
-        obs, actions, rewards, next_obs, dones = self.memory.sample_buffer(batch_size, 1)
 
-        embeds = self.world_model.encode(obs)
+        total_critic_loss = 0
+        total_actor_loss = 0
 
-        h, z, _, _ = self.world_model.rssm.observe_sequence(actions, embeds)
+        for epoch in range(epochs):
+            obs, actions, rewards, next_obs, dones = self.memory.sample_buffer(batch_size, 1)
 
-        h_final = h[:, -1]
-        z_final = z[:, -1]
+            embeds = self.world_model.encode(obs)
 
-        features, actions, log_probs = self.imagine_trajectory(h_final, z_final, horizon)
+            h, z, _, _ = self.world_model.rssm.observe_sequence(actions, embeds)
 
-        rewards = self.world_model.reward_pred(features[:, 1:])
+            h_final = h[:, -1]
+            z_final = z[:, -1]
 
-        batch_size, horizon_plus_1, feature_dim = features.shape
-        horizon = horizon_plus_1 - 1
+            features, actions, log_probs = self.imagine_trajectory(h_final, z_final, horizon)
 
-        # Flatten for MLPs, then restore shape
-        returns = self.world_model.reward_pred(
-            features[:, 1:].reshape(batch_size * horizon, feature_dim)
-        ).reshape(batch_size, horizon)
+            batch_size, horizon_plus_1, feature_dim = features.shape
+            horizon = horizon_plus_1 - 1
 
-        values = self.critic(
-            features.reshape(batch_size * horizon_plus_1, feature_dim)
-        ).reshape(batch_size, horizon_plus_1)
+            # Flatten for MLPs, then restore shape
+            rewards = self.world_model.reward_pred(
+                features[:, 1:].reshape(batch_size * horizon, feature_dim)
+            ).reshape(batch_size, horizon)
 
-        critic_loss = F.mse_loss(values[:, :-1], returns.detach())
-        actor_loss = -returns.mean()
-        
-        self.critic_optimizer.zero_grad()
-        self.actor_optimizer.zero_grad()
+            values = self.critic(
+                features.reshape(batch_size * horizon_plus_1, feature_dim)
+            ).reshape(batch_size, horizon_plus_1)
 
-        (actor_loss + critic_loss).backward()
+            returns = self.compute_lambda_returns(rewards, values.detach())
 
-        self.critic_optimizer.step()
-        self.actor_optimizer.step()
+            returns = returns - returns.mean() / (returns.std() + 1e-8)
+
+            critic_loss = F.mse_loss(values[:, :-1], returns.detach())
+            actor_loss = -returns.mean()
+
+            total_critic_loss += critic_loss.item()
+            total_actor_loss += actor_loss.item()
+            
+            self.critic_optimizer.zero_grad()
+            self.actor_optimizer.zero_grad()
+
+            (actor_loss + critic_loss).backward()
+
+            torch.nn.utils.clip_grad_norm_(self.actor.parameters(), max_norm=100)
+            torch.nn.utils.clip_grad_norm_(self.critic.parameters(), max_norm=100)
+
+            self.critic_optimizer.step()
+            self.actor_optimizer.step()
+
+        avg_critic_loss = total_critic_loss / epochs
+        avg_actor_loss = total_actor_loss / epochs
+
+        return avg_actor_loss, avg_critic_loss
 
 
     def train_encoder(self,
@@ -288,17 +347,19 @@ class Agent:
 
     def train(self, epochs=0):
 
-        for _ in range(epochs):
+        for epoch in range(epochs):
             self.collect_dataset(10)
-            loss = self.train_world_model(epochs=50, batch_size=16, sequence_length=16)
+            world_model_loss = self.train_world_model(epochs=50, batch_size=16, sequence_length=16)
             #
             # loss = self.train_encoder(epochs=50, batch_size=16, sequence_length=16)
-            print(f"Loss: {loss}")
             visualize.visualize_reconstruction(self.world_model, self.memory, num_samples=4)
 
-            self.train_actor_critic()
+            actor_loss, critic_loss = self.train_actor_critic(epochs=50)
 
+            reward = self.evaluate_policy()
 
+            print(f"Epoch {epoch} Loss - World Model: {world_model_loss} Actor: {actor_loss} Critic: {critic_loss}")
+            print(f"Epoch {epoch} Eval Reward: {reward}")
             
         
 
