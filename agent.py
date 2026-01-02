@@ -41,10 +41,12 @@ class Agent:
         self.actor = Actor(feature_dim=feature_dim, 
                            num_actions=num_actions, 
                            hidden_dim=hidden_dim).to(self.device)
+        self.actor_optimizer = torch.optim.Adam(self.actor.parameters(), learning_rate)
 
     # def __init__(self, feature_dim, hidden_dim, checkpoint_dir='checkpoints', name='critic_network'):
         self.critic = Critic(feature_dim=feature_dim, 
                              hidden_dim=hidden_dim).to(self.device)
+        self.critic_optimizer = torch.optim.Adam(self.critic.parameters(), learning_rate)
         # print(self.env.action_space.shape)
 
         self.memory = ReplayBuffer(max_size=max_buffer_size, 
@@ -189,10 +191,25 @@ class Agent:
 
         h, z, _, _ = self.world_model.rssm.observe_sequence(actions, embeds)
 
+        h_final = h[:, -1]
+        z_final = z[:, -1]
 
+        features, actions, log_probs = self.imagine_trajectory(h_final, z_final, horizon)
 
+        rewards = self.world_model.reward_pred(features[:, 1:])
 
+        values = self.critic(features)
 
+        returns = self.compute_lambda_returns(rewards, values)
+
+        critic_loss = F.mse_loss(values[:, :-1], returns.detach())
+        actor_loss = -returns.mean()
+        
+        self.critic_optimizer.zero_grad()
+        self.actor_optimizer.zero_grad()
+
+        self.critic_optimizer.step()
+        self.actor_optimizer.step()
 
 
     def train_encoder(self,
