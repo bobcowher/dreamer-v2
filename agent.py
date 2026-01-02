@@ -198,15 +198,25 @@ class Agent:
 
         rewards = self.world_model.reward_pred(features[:, 1:])
 
-        values = self.critic(features)
+        batch_size, horizon_plus_1, feature_dim = features.shape
+        horizon = horizon_plus_1 - 1
 
-        returns = self.compute_lambda_returns(rewards, values)
+        # Flatten for MLPs, then restore shape
+        returns = self.world_model.reward_pred(
+            features[:, 1:].reshape(batch_size * horizon, feature_dim)
+        ).reshape(batch_size, horizon)
+
+        values = self.critic(
+            features.reshape(batch_size * horizon_plus_1, feature_dim)
+        ).reshape(batch_size, horizon_plus_1)
 
         critic_loss = F.mse_loss(values[:, :-1], returns.detach())
         actor_loss = -returns.mean()
         
         self.critic_optimizer.zero_grad()
         self.actor_optimizer.zero_grad()
+
+        (actor_loss + critic_loss).backward()
 
         self.critic_optimizer.step()
         self.actor_optimizer.step()
