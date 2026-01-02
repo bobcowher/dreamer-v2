@@ -176,6 +176,23 @@ class Agent:
 
         return avg_loss
             
+    def train_actor_critic(self, batch_size=16, horizon=15):
+        """
+        Train actor and critic on imagined trajectories.
+        
+        Returns:
+            dict with actor_loss, critic_loss
+        """
+        obs, actions, rewards, next_obs, dones = self.memory.sample_buffer(batch_size, 1)
+
+        embeds = self.world_model.encode(obs)
+
+        h, z, _, _ = self.world_model.rssm.observe_sequence(actions, embeds)
+
+
+
+
+
 
 
     def train_encoder(self,
@@ -251,6 +268,8 @@ class Agent:
             # loss = self.train_encoder(epochs=50, batch_size=16, sequence_length=16)
             print(f"Loss: {loss}")
             visualize.visualize_reconstruction(self.world_model, self.memory, num_samples=4)
+
+            self.train_actor_critic()
 
 
             

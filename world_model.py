@@ -42,13 +42,8 @@ class WorldModel(nn.Module):
             T - Sequence Length
             C, H, W - Channels, 
         """
-        batch_size, sequence_length = obs.shape[:2]
-        
-        # Encode all observations
-        obs_flat = obs.view(batch_size * sequence_length, *obs.shape[2:])
-        embed_flat = self.encoder(obs_flat)  # Your encoder returns (embed, recon)
-        embeds = embed_flat.view(batch_size, sequence_length, -1)
-        
+        embeds = self.encode(obs)
+
         # Run RSSM
         h_all, z_all, prior_all, post_all = self.rssm.observe_sequence(actions, embeds)
         
@@ -68,6 +63,15 @@ class WorldModel(nn.Module):
             "continue_pred": continue_pred,
             "embeds": embeds,
         }
+
+
+    def encode(self, obs):
+        batch_size, sequence_length = obs.shape[:2]
+        obs_flat = obs.view(batch_size * sequence_length, *obs.shape[2:])
+        embed_flat = self.encoder(obs_flat)
+        embeds = embed_flat.view(batch_size, sequence_length, -1)
+
+        return embeds
 
 
     def kl_divergence(self, prior_logits, post_logits):
