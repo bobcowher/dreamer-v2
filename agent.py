@@ -351,6 +351,8 @@ class Agent:
                         episodes : int,
                         use_policy=True):
 
+        total_reward = 0
+
         for episode in range(episodes):
             done = False
             obs, info = self.env.reset()
@@ -375,8 +377,12 @@ class Agent:
                 obs = next_obs
 
                 episode_reward = episode_reward + float(reward)
+
+            total_reward += episode_reward
             
             self.left_bias = not self.left_bias
+
+        return total_reward / episodes
 
             # if use_policy == False:
             #     print(f"Heuristic policy episode reward: {episode_reward}")
@@ -387,7 +393,7 @@ class Agent:
         self.collect_dataset(50, use_policy=False)
 
         for epoch in range(epochs):
-            self.collect_dataset(1)
+            live_reward = self.collect_dataset(1)
             world_model_loss = self.train_world_model(epochs=5, batch_size=16, sequence_length=16)
             #
             # loss = self.train_encoder(epochs=50, batch_size=16, sequence_length=16)
@@ -395,10 +401,10 @@ class Agent:
 
             actor_loss, critic_loss = self.train_actor_critic(epochs=50)
 
-            if(epoch % 10 == 0):
-                reward = self.evaluate_policy()
-                print(f"Epoch {epoch} Eval Reward: {reward}")
-                self.summary_writer.add_scalar("Eval/Reward", reward, epoch)
+            # if(epoch % 10 == 0):
+            #     reward = self.evaluate_policy()
+            print(f"Epoch {epoch} Eval Reward: {live_reward}")
+            self.summary_writer.add_scalar("Eval/Reward", live_reward, epoch)
 
             print(f"Epoch {epoch} Loss - World Model: {world_model_loss} Actor: {actor_loss} Critic: {critic_loss}")
 
