@@ -132,6 +132,19 @@ class WorldModel(BaseModel):
             "total": total_loss.item(),
         }
 
+    # In WorldModel
+    def get_initial_state(self, batch_size):
+        return self.rssm.initial_state(batch_size)
+
+    def observe(self, actions, embeds):
+        return self.rssm.observe_sequence(actions, embeds)
+
+    def imagine_step(self, h, z, action):
+        return self.rssm.imagine_step(h, z, action)
+
+    def predict_reward(self, features):
+        return self.reward_pred(features)
+
 
 if __name__ == "__main__":
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")

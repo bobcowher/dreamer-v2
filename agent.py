@@ -106,7 +106,7 @@ class Agent:
         for _ in range(horizon):
             features = torch.cat([h, z], dim=-1)
             action, log_prob = self.actor.sample(features)
-            h, z = self.world_model.rssm.imagine_step(h, z, action)
+            h, z = self.world_model.imagine_step(h, z, action)
             
             h_list.append(h)
             z_list.append(z)
@@ -187,7 +187,7 @@ class Agent:
             episode_reward = 0
             
             # Need to maintain RSSM state
-            h, z = self.world_model.rssm.initial_state(1)
+            h, z = self.world_model.get_initial_state(1)
             
             while not done:
                 with torch.no_grad():
@@ -197,7 +197,7 @@ class Agent:
                     
                     # Update RSSM state
                     action_dummy = torch.zeros(1, 1, 3, device=self.device)
-                    h, z, _, _ = self.world_model.rssm.observe_sequence(action_dummy, embed)
+                    h, z, _, _ = self.world_model.observe(action_dummy, embed)
                     h, z = h[:, -1], z[:, -1]
                     
                     # Get action from policy
@@ -233,7 +233,7 @@ class Agent:
 
             embeds = self.world_model.encode(obs)
 
-            h, z, _, _ = self.world_model.rssm.observe_sequence(actions, embeds)
+            h, z, _, _ = self.world_model.observe(actions, embeds)
 
             h_final = h[:, -1]
             z_final = z[:, -1]
