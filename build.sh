@@ -1,6 +1,6 @@
 source ~/anaconda3/etc/profile.d/conda.sh
 
-conda activate dreamer-gemini
+conda activate dreamer-v2
 
 python ./train.py
 # python ./actor_critic.py
