@@ -239,12 +239,15 @@ class Agent:
             while not done:
                 action, h, z = self.get_action(obs, h, z)
 
-                print(f"Action: steer={action[0]:.3f}, gas={action[1]:.3f}, brake={action[2]:.3f}")
                 
                 obs, reward, done, truncated, _ = self.env.step(action)
                 obs = self.process_observation(obs)
                 done = done or truncated
                 episode_reward += float(reward)
+                
+                if done:
+                    # Only print the last action, for log purposes. 
+                    print(f"Action: steer={action[0]:.3f}, gas={action[1]:.3f}, brake={action[2]:.3f}")
             
             total_reward += episode_reward
         
@@ -384,20 +387,20 @@ class Agent:
         self.collect_dataset(50, use_policy=False)
 
         for epoch in range(epochs):
-            self.collect_dataset(10)
-            world_model_loss = self.train_world_model(epochs=50, batch_size=16, sequence_length=16)
+            self.collect_dataset(1)
+            world_model_loss = self.train_world_model(epochs=5, batch_size=16, sequence_length=16)
             #
             # loss = self.train_encoder(epochs=50, batch_size=16, sequence_length=16)
             visualize.visualize_reconstruction(self.world_model, self.memory, num_samples=4)
 
             actor_loss, critic_loss = self.train_actor_critic(epochs=50)
 
-            reward = self.evaluate_policy()
+            if(epoch % 10 == 0):
+                reward = self.evaluate_policy()
+                print(f"Epoch {epoch} Eval Reward: {reward}")
+                self.summary_writer.add_scalar("Eval/Reward", reward, epoch)
 
             print(f"Epoch {epoch} Loss - World Model: {world_model_loss} Actor: {actor_loss} Critic: {critic_loss}")
-            print(f"Epoch {epoch} Eval Reward: {reward}")
-
-            self.summary_writer.add_scalar("Eval/Reward", reward, epoch)
 
             self.summary_writer.add_scalar("Loss/Actor", actor_loss, epoch)
             self.summary_writer.add_scalar("Loss/Critic", critic_loss, epoch)
