@@ -31,11 +31,11 @@ class WorldModel(BaseModel):
         self.reward_pred = RewardPredictor(feature_dim)
         self.continue_pred = ContinuePredictor(feature_dim)
 
-    def save_the_model(self, filename="world_model"):
+    def save_the_model(self, filename="world_model", verbose=False):
         self.encoder.save_the_model(filename="encoder")
         self.decoder.save_the_model(filename="decoder")
         self.rssm.save_the_model(filename="rssm")
-        return super().save_the_model(filename=filename)
+        return super().save_the_model(filename=filename, verbose=verbose)
 
     def load_the_model(self, filename="world_model", device='cuda'):
         self.encoder.load_the_model(filename="encoder")
@@ -134,7 +134,7 @@ class WorldModel(BaseModel):
             outputs["post_logits"]
         )
         
-        total_loss = recon_loss + reward_loss + continue_loss + 0.1 * kl_loss
+        total_loss = recon_loss + reward_loss + continue_loss + kl_loss
         
         return total_loss, {
             "recon": recon_loss.item(),
