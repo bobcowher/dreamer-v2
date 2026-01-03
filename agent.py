@@ -254,7 +254,7 @@ class Agent:
 
             returns = self.compute_lambda_returns(rewards, values.detach())
 
-            returns = returns - returns.mean() / (returns.std() + 1e-8)
+            returns = (returns - returns.mean()) / (returns.std() + 1e-8)
 
             critic_loss = F.mse_loss(values[:, :-1], returns.detach())
             actor_loss = -returns.mean()
@@ -351,6 +351,9 @@ class Agent:
                 episode_reward = episode_reward + float(reward)
             
             self.left_bias = not self.left_bias
+
+            if use_policy == False:
+                print(f"Heuristic policy episode reward: {episode_reward}")
 
 
     def train(self, epochs=0):
