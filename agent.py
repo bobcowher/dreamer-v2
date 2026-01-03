@@ -31,7 +31,7 @@ class Agent:
         
         # self.encoder = Encoder(observation_shape=obs.shape).to(self.device)
         # self.encoder_optimizer = torch.optim.Adam(self.encoder.parameters(), learning_rate) 
-        num_actions = self.env.action_space.shape[0] 
+        num_actions = self.env.action_space.shape[0] # pyright: ignore TODO: Fix this properly later 
 
         self.world_model = WorldModel(obs_shape=obs.shape, 
                                       action_dim=num_actions).to(self.device)
