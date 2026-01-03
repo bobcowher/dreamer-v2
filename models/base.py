@@ -9,14 +9,14 @@ class BaseModel(nn.Module):
 
     def save_the_model(self, filename):
         # Create directory if it doesn't exist
-        path = "checkpoints/" + filename
+        path = "checkpoints/" + filename + ".pt"
         os.makedirs(os.path.dirname(path), exist_ok=True)
         torch.save(self.state_dict(), path)
         print(f"Saved model to {path}")
 
     def load_the_model(self, filename, device='cuda'):
     
-        path = "checkpoints/" + filename
+        path = "checkpoints/" + filename + ".pt"
 
         try:
             self.load_state_dict(torch.load(path, map_location=device))

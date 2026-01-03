@@ -313,7 +313,8 @@ class Agent:
 
 
     def collect_dataset(self, 
-                        episodes : int):
+                        episodes : int,
+                        use_policy=True):
 
         for episode in range(episodes):
             done = False
@@ -321,9 +322,22 @@ class Agent:
             obs = self.process_observation(obs)
             episode_reward = 0.0
 
+            h, z = self.world_model.get_initial_state(1)
             
             while not done:
-                action = self.heuristic_action()
+                if use_policy:
+                    with torch.no_grad():
+                        obs_batch = obs.unsqueeze(0).unsqueeze(0)
+                        embed = self.world_model.encode(obs_batch)
+                        h, z, _, _ = self.world_model.observe(
+                            torch.zeros(1, 1, 3, device=self.device), embed
+                        )
+                        h, z = h[:, -1], z[:, -1]
+                        features = torch.cat([h, z], dim=-1)
+                        action, _ = self.actor.sample(features)
+                        action = action.squeeze(0).cpu().numpy()
+                else:
+                    action = self.heuristic_action()
                 
                 next_obs, reward, done, truncated, info  = self.env.step(action)
                 next_obs = self.process_observation(next_obs)
@@ -341,6 +355,8 @@ class Agent:
 
     def train(self, epochs=0):
 
+        self.collect_dataset(50, use_policy=False)
+
         for epoch in range(epochs):
             self.collect_dataset(10)
             world_model_loss = self.train_world_model(epochs=50, batch_size=16, sequence_length=16)
@@ -354,6 +370,10 @@ class Agent:
 
             print(f"Epoch {epoch} Loss - World Model: {world_model_loss} Actor: {actor_loss} Critic: {critic_loss}")
             print(f"Epoch {epoch} Eval Reward: {reward}")
+
+            self.world_model.save_the_model(filename="world_model")
+            self.critic.save_the_model(filename="critic")
+            self.actor.save_the_model(filename="actor")
             
         
 

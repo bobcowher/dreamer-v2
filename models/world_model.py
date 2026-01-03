@@ -30,6 +30,18 @@ class WorldModel(BaseModel):
         
         self.reward_pred = RewardPredictor(feature_dim)
         self.continue_pred = ContinuePredictor(feature_dim)
+
+    def save_the_model(self, filename="world_model"):
+        self.encoder.save_the_model(filename="encoder")
+        self.decoder.save_the_model(filename="decoder")
+        self.rssm.save_the_model(filename="rssm")
+        return super().save_the_model(filename=filename)
+
+    def load_the_model(self, filename="world_model", device='cuda'):
+        self.encoder.load_the_model(filename="encoder")
+        self.decoder.load_the_model(filename="decoder")
+        self.rssm.load_the_model(filename="rssm")
+        return super().load_the_model(filename, device)
     
     def forward(self, obs, actions):
         """
