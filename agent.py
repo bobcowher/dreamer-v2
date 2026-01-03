@@ -65,6 +65,11 @@ class Agent:
     def __del__(self):
         self.env.close()
 
+    def load_models(self):
+        self.world_model.load_the_model(filename="world_model")
+        self.critic.load_the_model(filename="critic")
+        self.actor.load_the_model(filename="actor")
+
     def heuristic_action(self):
         
         if(self.left_bias):
@@ -83,6 +88,45 @@ class Agent:
         obs = cv2.resize(obs, (64, 64), interpolation=cv2.INTER_NEAREST)
         obs = torch.from_numpy(obs).permute(2, 0, 1).to(self.device)
         return obs 
+
+    def get_action(self, obs, h, z, deterministic=False):
+        """
+        Get action from policy given observation and RSSM state.
+        
+        Args:
+            obs: processed observation (C, H, W)
+            h: deterministic state (1, hidden_dim)
+            z: stochastic state (1, stoch_flat)
+            deterministic: if True, use mean instead of sampling
+        
+        Returns:
+            action: numpy array scaled to env bounds
+            h_new, z_new: updated RSSM state
+        """
+        with torch.no_grad():
+            obs_batch = obs.unsqueeze(0).unsqueeze(0)  # (1, 1, C, H, W)
+            embed = self.world_model.encode(obs_batch)
+            
+            # Dummy action for observe (action doesn't affect posterior much)
+            dummy_action = torch.zeros(1, 1, 3, device=self.device)
+            h, z, _, _ = self.world_model.observe(dummy_action, embed)
+            h, z = h[:, -1], z[:, -1]
+            
+            features = torch.cat([h, z], dim=-1)
+            
+            if deterministic:
+                mean, _ = self.actor.forward(features)
+                action = torch.tanh(mean)
+            else:
+                action, _ = self.actor.sample(features)
+            
+            action = action.squeeze(0).cpu().numpy()
+        
+        # Scale to environment bounds
+        action[1] = (action[1] + 1) / 2  # gas: [-1,1] → [0,1]
+        action[2] = (action[2] + 1) / 2  # brake: [-1,1] → [0,1]
+        
+        return action, h, z
 
     def imagine_trajectory(self, start_h, start_z, horizon):
         """
@@ -180,7 +224,7 @@ class Agent:
 
         return avg_loss
 
-
+    
     def evaluate_policy(self, num_episodes=3):
         total_reward = 0
         
@@ -190,24 +234,12 @@ class Agent:
             done = False
             episode_reward = 0
             
-            # Need to maintain RSSM state
             h, z = self.world_model.get_initial_state(1)
             
             while not done:
-                with torch.no_grad():
-                    # Encode observation
-                    obs_batch = obs.unsqueeze(0).unsqueeze(0)  # (1, 1, C, H, W)
-                    embed = self.world_model.encode(obs_batch)
-                    
-                    # Update RSSM state
-                    action_dummy = torch.zeros(1, 1, 3, device=self.device)
-                    h, z, _, _ = self.world_model.observe(action_dummy, embed)
-                    h, z = h[:, -1], z[:, -1]
-                    
-                    # Get action from policy
-                    features = torch.cat([h, z], dim=-1)
-                    action, _ = self.actor.sample(features)
-                    action = action.squeeze(0).cpu().numpy()
+                action, h, z = self.get_action(obs, h, z)
+
+                print(f"Action: steer={action[0]:.3f}, gas={action[1]:.3f}, brake={action[2]:.3f}")
                 
                 obs, reward, done, truncated, _ = self.env.step(action)
                 obs = self.process_observation(obs)
@@ -215,11 +247,9 @@ class Agent:
                 episode_reward += float(reward)
             
             total_reward += episode_reward
-            # print(f"Episode reward: {episode_reward}")
         
-        avg_reward = total_reward / num_episodes
-        print(f"Average reward: {avg_reward}")
-        return avg_reward
+        return total_reward / num_episodes
+
                 
     def train_actor_critic(self, epochs=1, batch_size=16, horizon=15):
         """
@@ -328,16 +358,7 @@ class Agent:
             
             while not done:
                 if use_policy:
-                    with torch.no_grad():
-                        obs_batch = obs.unsqueeze(0).unsqueeze(0)
-                        embed = self.world_model.encode(obs_batch)
-                        h, z, _, _ = self.world_model.observe(
-                            torch.zeros(1, 1, 3, device=self.device), embed
-                        )
-                        h, z = h[:, -1], z[:, -1]
-                        features = torch.cat([h, z], dim=-1)
-                        action, _ = self.actor.sample(features)
-                        action = action.squeeze(0).cpu().numpy()
+                    action, h, z = self.get_action(obs, h, z)
                 else:
                     action = self.heuristic_action()
                 
@@ -376,6 +397,8 @@ class Agent:
             print(f"Epoch {epoch} Loss - World Model: {world_model_loss} Actor: {actor_loss} Critic: {critic_loss}")
             print(f"Epoch {epoch} Eval Reward: {reward}")
 
+            self.summary_writer.add_scalar("Eval/Reward", reward, epoch)
+
             self.summary_writer.add_scalar("Loss/Actor", actor_loss, epoch)
             self.summary_writer.add_scalar("Loss/Critic", critic_loss, epoch)
 
@@ -385,10 +408,8 @@ class Agent:
             self.world_model.save_the_model(filename="world_model")
             self.critic.save_the_model(filename="critic")
             self.actor.save_the_model(filename="actor")
-            
+    
+
         
-
-    def get_action(self):
-        pass
-
+    
 
