@@ -59,7 +59,7 @@ class Agent:
 
         summary_writer_name = f'runs/{datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")}'
         self.summary_writer = SummaryWriter(summary_writer_name)
-        self.total_steps = 0
+        self.total_steps_world_model = 0
 
 
     def __del__(self):
@@ -149,8 +149,13 @@ class Agent:
     
 
     def train_world_model(self, epochs, batch_size, sequence_length):
-       
-        total_loss = 0
+      
+        # Declaring avg loss. We'll add to this and average it at the end. 
+        avg_loss = {"world_model": 0.0,
+                      "recon": 0.0,
+                      "reward": 0.0,
+                      "continue": 0.0,
+                      "kl": 0.0}
 
         for _ in range(epochs):
             obs, actions, rewards, next_obs, dones = self.memory.sample_buffer(batch_size, sequence_length)
@@ -159,20 +164,19 @@ class Agent:
             
             loss, loss_dict = self.world_model.compute_loss(obs, actions, rewards, continues)
             
-            total_loss += loss.item()
-            
             self.world_model_optimizer.zero_grad()
             loss.backward()
             self.world_model_optimizer.step()
+
+            avg_loss["world_model"] += loss.item()
+            avg_loss["recon"]       += loss_dict["recon"]
+            avg_loss["reward"]      += loss_dict["reward"]
+            avg_loss["continue"]    += loss_dict["continue"]
+            avg_loss["kl"]          += loss_dict["kl"]
             
-            self.summary_writer.add_scalar("Loss/recon", loss_dict["recon"], self.total_steps)
-            self.summary_writer.add_scalar("Loss/reward", loss_dict["reward"], self.total_steps)
-            self.summary_writer.add_scalar("Loss/continue", loss_dict["continue"], self.total_steps)
-            self.summary_writer.add_scalar("Loss/kl", loss_dict["kl"], self.total_steps)
-
-            self.total_steps += 1
-
-        avg_loss = total_loss / epochs
+        # Actually average average loss
+        for key, val in avg_loss.items():
+            avg_loss[key] = val / epochs
 
         return avg_loss
 
@@ -304,8 +308,6 @@ class Agent:
             loss.backward()
             self.world_model_optimizer.step()
             
-            self.total_steps += 1
-
         avg_loss = total_loss / epochs
 
         return avg_loss
@@ -352,9 +354,9 @@ class Agent:
             
             self.left_bias = not self.left_bias
 
-            if use_policy == False:
-                print(f"Heuristic policy episode reward: {episode_reward}")
-
+            # if use_policy == False:
+            #     print(f"Heuristic policy episode reward: {episode_reward}")
+            #
 
     def train(self, epochs=0):
 
@@ -373,6 +375,12 @@ class Agent:
 
             print(f"Epoch {epoch} Loss - World Model: {world_model_loss} Actor: {actor_loss} Critic: {critic_loss}")
             print(f"Epoch {epoch} Eval Reward: {reward}")
+
+            self.summary_writer.add_scalar("Loss/Actor", actor_loss, epoch)
+            self.summary_writer.add_scalar("Loss/Critic", critic_loss, epoch)
+
+            for key, val in world_model_loss.items():
+                self.summary_writer.add_scalar(f"Loss/WorldModel {key}", val, epoch)
 
             self.world_model.save_the_model(filename="world_model")
             self.critic.save_the_model(filename="critic")

@@ -7,12 +7,14 @@ class BaseModel(nn.Module):
     def __init__(self):
         super().__init__()
 
-    def save_the_model(self, filename):
+    def save_the_model(self, filename, verbose=False):
         # Create directory if it doesn't exist
         path = "checkpoints/" + filename + ".pt"
         os.makedirs(os.path.dirname(path), exist_ok=True)
         torch.save(self.state_dict(), path)
-        print(f"Saved model to {path}")
+
+        if verbose:
+            print(f"Saved model to {path}")
 
     def load_the_model(self, filename, device='cuda'):
     
