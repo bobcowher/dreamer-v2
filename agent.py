@@ -11,6 +11,7 @@ from models.critic import Critic
 from torch.utils.tensorboard.writer import SummaryWriter
 import datetime
 import visualize
+import random
 
 class Agent:
 
@@ -375,6 +376,9 @@ class Agent:
                 self.memory.store_transition(obs, action, reward, next_obs, done)
 
                 obs = next_obs
+
+                if(random.random() < 0.01):
+                    print(f"Action Sample: {action}")
 
                 episode_reward = episode_reward + float(reward)
 
