@@ -1,11 +1,12 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from encoder import Encoder, Decoder  # Your encoder/decoder
-from rssm import RSSM, RewardPredictor, ContinuePredictor
+from models.encoder import Encoder, Decoder  # Your encoder/decoder
+from models.rssm import RSSM, RewardPredictor, ContinuePredictor
+from models.base import BaseModel
 
 
-class WorldModel(nn.Module):
+class WorldModel(BaseModel):
     def __init__(
         self,
         obs_shape,          # (3, 64, 64)

@@ -1,30 +1,8 @@
 from numpy import int32
+import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import torch
-import os
-
-class BaseModel(nn.Module):
-    
-    def __init__(self, *args, **kwargs) -> None:
-        super().__init__(*args, **kwargs)
-
-    def save_the_model(self, filename='models/latest.pt'):
-        # Create directory if it doesn't exist
-        os.makedirs(os.path.dirname(filename), exist_ok=True)
-        torch.save(self.state_dict(), filename)
-        print(f"Saved model to {filename}")
-
-
-    def load_the_model(self, filename='models/latest.pt', device='cuda'):
-        try:
-            self.load_state_dict(torch.load(filename, map_location=device))
-            print(f"Loaded weights from {filename}")
-        except FileNotFoundError:
-            print(f"No weights file found at {filename}")
-        except Exception as e:
-            print(f"Error loading model from {filename}: {e}")
-
+from models.base import BaseModel
 
 class Encoder(BaseModel):
 
@@ -70,7 +48,6 @@ class Encoder(BaseModel):
         x = self._conv_features(x)
         x = self.flatten(x)
         return x
-
         
     def forward(self, x):
         # x: (B,3,H,W) in [0,1]

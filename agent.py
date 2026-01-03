@@ -1,14 +1,14 @@
+import numpy as np
 import gymnasium as gym
 import cv2
-from gymnasium.spaces import sequence
+# from gymnasium.spaces import sequence
 import torch
-import numpy as np
-from buffer import ReplayBuffer
-from encoder import Encoder
-from world_model import WorldModel
 import torch.nn.functional as F
-from torch.utils.tensorboard import SummaryWriter
-from actor_critic import Actor, Critic
+from buffer import ReplayBuffer
+from models.world_model import WorldModel
+from models.actor import Actor
+from models.critic import Critic
+from torch.utils.tensorboard.writer import SummaryWriter
 import datetime
 import visualize
 
@@ -122,9 +122,7 @@ class Agent:
 
         return features, actions, log_probs
         
-    # Stack into tensors
-    # features: concat all (h, z) pairs
-    # Return shapes for downstream loss computation
+
     def compute_lambda_returns(self, rewards, values, gamma=0.99, lambda_=0.95):
         """
         Args:
@@ -339,10 +337,6 @@ class Agent:
                 episode_reward = episode_reward + float(reward)
             
             self.left_bias = not self.left_bias
-
-            # print(f"Completed episode {episode} with score {episode_reward}")
-
-            # self.memory.print_stats()
 
 
     def train(self, epochs=0):

@@ -1,13 +1,14 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from models.base import BaseModel
 
 # h = previous deterministic state
 # z = new stochastic state (sampled from posterior)
 # a = action
 # e = encoded observation. 
 
-class RSSM(nn.Module):
+class RSSM(BaseModel):
     def __init__(
         self,
         action_dim: int,

@@ -2,50 +2,14 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.distributions import Normal
+from models.base import BaseModel
 import os
 
 LOG_SIG_MAX = 2
 LOG_SIG_MIN = -20
 epsilon = 1e-6
 
-# Initialize Policy weights
-def weights_init_(m):
-    if isinstance(m, nn.Linear):
-        torch.nn.init.xavier_uniform_(m.weight, gain=1)
-        torch.nn.init.constant_(m.bias, 0)
-
-class Critic(nn.Module):
-    def __init__(self, feature_dim, hidden_dim, checkpoint_dir='checkpoints', name='critic_network'):
-        super(Critic, self).__init__()
-
-        # Q1 architecture
-        self.linear1 = nn.Linear(feature_dim, hidden_dim)
-        self.linear2 = nn.Linear(hidden_dim, hidden_dim)
-        self.output1 = nn.Linear(hidden_dim, 1)
-
-        self.name = name
-        self.checkpoint_dir = checkpoint_dir
-        self.checkpoint_file = os.path.join(self.checkpoint_dir, name)
-
-
-    def forward(self, x):
-        # xu = torch.cat([state, action], 1)
-        
-        x = F.elu(self.linear1(x))
-        x = F.elu(self.linear2(x))
-        # x1 = F.relu(self.linear3(x1))
-        x = self.output1(x)
-
-        return x.squeeze(-1)
-
-    def save_checkpoint(self):
-        torch.save(self.state_dict(), self.checkpoint_file)
-
-    def load_checkpoint(self):
-        self.load_state_dict(torch.load(self.checkpoint_file))
-
-
-class Actor(nn.Module):
+class Actor(BaseModel):
     def __init__(self, feature_dim, num_actions, hidden_dim, checkpoint_dir='checkpoints', name='policy_network'):
         super(Actor, self).__init__()
         
@@ -79,12 +43,6 @@ class Actor(nn.Module):
         log_prob -= torch.log(1 - action.pow(2) + epsilon)
         log_prob = log_prob.sum(dim=-1)
         return action, log_prob
-
-    def save_checkpoint(self):
-        torch.save(self.state_dict(), self.checkpoint_file)
-
-    def load_checkpoint(self):
-        self.load_state_dict(torch.load(self.checkpoint_file))
 
 
 if __name__ == "__main__":
