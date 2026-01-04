@@ -334,7 +334,7 @@ class Agent:
             padded = F.pad(embed, (0, 512))  # 1024 → 1536
             recon = self.world_model.decoder(padded)
 
-            loss = F.mse_loss(obs_flat, recon)
+            loss = F.l1_loss(obs_flat, recon)
             
             total_loss += loss.item()
             
@@ -398,7 +398,7 @@ class Agent:
 
         for epoch in range(epochs):
             live_reward = self.collect_dataset(1)
-            world_model_loss = self.train_world_model(epochs=5, batch_size=16, sequence_length=16)
+            world_model_loss = self.train_world_model(epochs=100, batch_size=50, sequence_length=50)
             #
             # loss = self.train_encoder(epochs=50, batch_size=16, sequence_length=16)
             visualize.visualize_reconstruction(self.world_model, self.memory, num_samples=4)
