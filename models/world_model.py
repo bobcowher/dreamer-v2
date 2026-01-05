@@ -86,15 +86,36 @@ class WorldModel(BaseModel):
 
         return embeds
 
-
-    def kl_divergence(self, prior_logits, post_logits):
-        """KL(posterior || prior) for categorical distributions."""
-        prior = F.softmax(prior_logits.view(-1, 32, 32), dim=-1)
-        post = F.softmax(post_logits.view(-1, 32, 32), dim=-1)
+    def kl_divergence(self, prior_logits, post_logits, alpha=0.8):
+        """
+        KL Balancing (Algorithm 2 from DreamerV2 paper).
         
-        kl = post * (torch.log(post + 1e-8) - torch.log(prior + 1e-8))
-        return kl.sum(dim=-1).mean()  # Sum over classes, mean over batch/time/variables
-
+        alpha=0.8 means:
+        - 80% of gradient trains the PRIOR toward the posterior
+        - 20% of gradient regularizes the POSTERIOR toward the prior
+        
+        This prevents the prior from staying random while the posterior
+        gets crushed toward it.
+        """
+        prior_logits = prior_logits.view(-1, 32, 32)
+        post_logits = post_logits.view(-1, 32, 32)
+        
+        prior = F.softmax(prior_logits, dim=-1)
+        post = F.softmax(post_logits, dim=-1)
+        
+        # KL divergence: sum over classes, mean over batch/time/variables
+        def kl(p, q):
+            return (p * (torch.log(p + 1e-8) - torch.log(q + 1e-8))).sum(dim=-1)
+        
+        # Balanced KL:
+        # Term 1: gradient flows to PRIOR only (trains prior to match posterior)
+        # Term 2: gradient flows to POSTERIOR only (regularizes posterior toward prior)
+        kl_loss = (
+            alpha * kl(post.detach(), prior) +           # Train prior
+            (1 - alpha) * kl(post, prior.detach())       # Regularize posterior
+        )
+        
+        return kl_loss.mean()
 
     def compute_loss(self, obs, actions, rewards, continues):
         """
@@ -134,7 +155,7 @@ class WorldModel(BaseModel):
             outputs["post_logits"]
         )
         
-        total_loss = recon_loss + reward_loss + continue_loss + 0.2 * kl_loss
+        total_loss = recon_loss + reward_loss + continue_loss + kl_loss
         
         return total_loss, {
             "recon": recon_loss.item(),

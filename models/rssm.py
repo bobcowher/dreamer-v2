@@ -41,6 +41,8 @@ class RSSM(BaseModel):
             nn.Linear(hidden_dim, self.stoch_flat),
         )
         # 4. posterior_net: (h, embed) → logits
+        # The Posterior network takes in h(GRU state) and the live environment embedding
+        # and outputs z, 
         self.post_net = nn.Sequential(
             nn.Linear(hidden_dim + embed_dim, hidden_dim),
             nn.ELU(),
@@ -102,7 +104,7 @@ class RSSM(BaseModel):
         
         Returns:
             h_all:         (B, T, hidden_dim)
-            z_all:         (B, T, stoch_flat)
+            z_all:         (B, T, stoch_flat) 
             prior_all:     (B, T, stoch_flat)
             posterior_all: (B, T, stoch_flat)
         """

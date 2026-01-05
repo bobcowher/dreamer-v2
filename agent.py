@@ -282,20 +282,23 @@ class Agent:
             horizon = horizon_plus_1 - 1
 
             # Flatten for MLPs, then restore shape
-            rewards = self.world_model.reward_pred(
-                features[:, 1:].reshape(batch_size * horizon, feature_dim)
-            ).reshape(batch_size, horizon)
+            # Don't let the actor gradients flow backwards through the reward predictor
+            with torch.no_grad():
+                rewards = self.world_model.reward_pred(
+                    features[:, 1:].reshape(batch_size * horizon, feature_dim)
+                ).reshape(batch_size, horizon)
 
             values = self.critic(
                 features.reshape(batch_size * horizon_plus_1, feature_dim)
             ).reshape(batch_size, horizon_plus_1)
 
-            returns = self.compute_lambda_returns(rewards, values.detach())
-
-            returns = (returns - returns.mean()) / (returns.std() + 1e-8)
+            with torch.no_grad():
+                returns = self.compute_lambda_returns(rewards, values.detach())
+                advantage = returns - values[:, :-1].detach()
+                advantage = (advantage - advantage.mean()) / (advantage.std() + 1e-8)
 
             critic_loss = F.mse_loss(values[:, :-1], returns.detach())
-            actor_loss = -returns.mean()
+            actor_loss = -(log_probs * advantage).mean()
 
             total_critic_loss += critic_loss.item()
             total_actor_loss += actor_loss.item()
