@@ -18,7 +18,6 @@ class Critic(BaseModel):
         
         x = F.elu(self.linear1(x))
         x = F.elu(self.linear2(x))
-        # x1 = F.relu(self.linear3(x1))
         x = self.output1(x)
 
         return x.squeeze(-1)

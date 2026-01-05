@@ -38,10 +38,10 @@ class Encoder(BaseModel):
         # Convert uint8 to float if needed (for initialization)
         if x.dtype == torch.uint8:
             x = x.float() / 255.0
-        x = F.relu(self.conv1(x))
-        x = F.relu(self.conv2(x))
-        x = F.relu(self.conv3(x))
-        x = F.relu(self.conv4(x))
+        x = F.elu(self.conv1(x))
+        x = F.elu(self.conv2(x))
+        x = F.elu(self.conv3(x))
+        x = F.elu(self.conv4(x))
         return x  # (B, C_enc, H_enc, W_enc)
 
     def _conv_forward(self, x):
@@ -76,10 +76,10 @@ class Decoder(BaseModel):
     
     def _deconv_forward(self, x):
         x = x.view(-1, *self.conv_output_shape)
-        x = F.relu(self.deconv1(x))
-        x = F.relu(self.deconv2(x))
-        x = F.relu(self.deconv3(x))
-        x = F.relu(self.deconv4(x))
+        x = F.elu(self.deconv1(x))
+        x = F.elu(self.deconv2(x))
+        x = F.elu(self.deconv3(x))
+        x = F.elu(self.deconv4(x))
        
         return x
 
