@@ -12,10 +12,10 @@ class Encoder(BaseModel):
         # print(observation_shape[-1])
         # conv_output_dim = 64
 
-        self.conv1 = nn.Conv2d(3, 32, kernel_size=4, stride=2, padding=1)
-        self.conv2 = nn.Conv2d(32, 64, kernel_size=4, stride=2, padding=1)
-        self.conv3 = nn.Conv2d(64, 128, kernel_size=4, stride=2, padding=1)
-        self.conv4 = nn.Conv2d(128, 256, kernel_size=4, stride=2, padding=1)
+        self.conv1 = nn.Conv2d(3, 48, kernel_size=4, stride=2, padding=1)
+        self.conv2 = nn.Conv2d(48, 96, kernel_size=4, stride=2, padding=1)
+        self.conv3 = nn.Conv2d(96, 192, kernel_size=4, stride=2, padding=1)
+        self.conv4 = nn.Conv2d(192, 384, kernel_size=4, stride=2, padding=1)
 
         self.flatten = torch.nn.Flatten()
 
@@ -63,15 +63,15 @@ class Decoder(BaseModel):
         super().__init__()
         
         # Calculate the required output size dynamically
-        self.conv_output_shape = (256, 4, 4)
-        conv_flat_size = 256 * 4 * 4  # 4096
+        self.conv_output_shape = (384, 4, 4)
+        conv_flat_size = 384 * 4 * 4  # 4096
         
         self.fc_dec = nn.Linear(embed_dim, conv_flat_size) 
 
-        self.deconv1 = nn.ConvTranspose2d(256, 128, kernel_size=4, stride=2, padding=1)
-        self.deconv2 = nn.ConvTranspose2d(128, 64, kernel_size=4, stride=2, padding=1)
-        self.deconv3 = nn.ConvTranspose2d(64, 32, kernel_size=4, stride=2, padding=1)
-        self.deconv4 = nn.ConvTranspose2d(32, observation_shape[0], kernel_size=4, stride=2, padding=1)
+        self.deconv1 = nn.ConvTranspose2d(384, 192, kernel_size=4, stride=2, padding=1)
+        self.deconv2 = nn.ConvTranspose2d(192, 96, kernel_size=4, stride=2, padding=1)
+        self.deconv3 = nn.ConvTranspose2d(96, 48, kernel_size=4, stride=2, padding=1)
+        self.deconv4 = nn.ConvTranspose2d(48, observation_shape[0], kernel_size=4, stride=2, padding=1)
 
     
     def _deconv_forward(self, x):
