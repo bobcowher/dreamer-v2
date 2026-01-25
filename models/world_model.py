@@ -117,7 +117,7 @@ class WorldModel(BaseModel):
         
         return kl_loss.mean()
 
-    def compute_loss(self, obs, actions, rewards, continues):
+    def compute_loss(self, obs, actions, rewards, continues, kl_weight=0.01):
         """
         Args:
             obs:       (B, T, C, H, W) uint8
@@ -154,8 +154,8 @@ class WorldModel(BaseModel):
             outputs["prior_logits"], 
             outputs["post_logits"]
         )
-        
-        total_loss = recon_loss + reward_loss + continue_loss + kl_loss
+
+        total_loss = recon_loss + reward_loss + continue_loss + (kl_weight * kl_loss)
         
         return total_loss, {
             "recon": recon_loss.item(),

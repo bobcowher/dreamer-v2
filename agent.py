@@ -59,6 +59,7 @@ class Agent:
         self.left_bias = True
 
         summary_writer_name = f'runs/{datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")}'
+        summary_writer_name = f'{summary_writer_name}_kl_weight_0.01'
         self.summary_writer = SummaryWriter(summary_writer_name)
         self.total_steps_world_model = 0
 
