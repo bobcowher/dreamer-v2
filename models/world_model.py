@@ -114,6 +114,10 @@ class WorldModel(BaseModel):
             alpha * kl(post.detach(), prior) +           # Train prior
             (1 - alpha) * kl(post, prior.detach())       # Regularize posterior
         )
+
+        free_bits = 0.05
+
+        kl_loss = torch.maximum(kl_loss, torch.tensor(free_bits))
         
         return kl_loss.mean()
 
