@@ -114,11 +114,10 @@ class WorldModel(BaseModel):
             alpha * kl(post.detach(), prior) +           # Train prior
             (1 - alpha) * kl(post, prior.detach())       # Regularize posterior
         )
+        free_bits = 0.1  # per-variable, can tune
 
-        free_bits = 0.05
+        kl_loss = torch.clamp(kl_loss - free_bits, min=0)
 
-        kl_loss = torch.maximum(kl_loss, torch.tensor(free_bits))
-        
         return kl_loss.mean()
 
     def compute_loss(self, obs, actions, rewards, continues, kl_weight=0.01):
@@ -143,7 +142,7 @@ class WorldModel(BaseModel):
         recon = recon.view(batch_size, seq_len, *obs.shape[2:])
         
         obs_normalized = obs.float() / 255.0
-        recon_loss = F.mse_loss(recon, obs_normalized)
+        recon_loss = F.l1_loss(recon, obs_normalized)
         
         # 2. Reward loss
         reward_loss = F.mse_loss(outputs["reward_pred"], rewards)
