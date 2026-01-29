@@ -86,39 +86,33 @@ class WorldModel(BaseModel):
 
         return embeds
 
-    def kl_divergence(self, prior_logits, post_logits, alpha=0.8):
+    
+    def kl_divergence(self, prior_logits, post_logits, alpha=0.8, free_nats=1.0):
         """
-        KL Balancing (Algorithm 2 from DreamerV2 paper).
-        
-        alpha=0.8 means:
-        - 80% of gradient trains the PRIOR toward the posterior
-        - 20% of gradient regularizes the POSTERIOR toward the prior
-        
-        This prevents the prior from staying random while the posterior
-        gets crushed toward it.
+        KL Balancing with free bits applied to TOTAL KL.
         """
-        prior_logits = prior_logits.view(-1, 32, 32)
+        prior_logits = prior_logits.view(-1, 32, 32)  # (B*T, 32 vars, 32 classes)
         post_logits = post_logits.view(-1, 32, 32)
         
         prior = F.softmax(prior_logits, dim=-1)
         post = F.softmax(post_logits, dim=-1)
         
-        # KL divergence: sum over classes, mean over batch/time/variables
         def kl(p, q):
-            return (p * (torch.log(p + 1e-8) - torch.log(q + 1e-8))).sum(dim=-1)
+            # Sum over classes, then sum over variables to get total KL per timestep
+            return (p * (torch.log(p + 1e-8) - torch.log(q + 1e-8))).sum(dim=-1).sum(dim=-1)
         
-        # Balanced KL:
-        # Term 1: gradient flows to PRIOR only (trains prior to match posterior)
-        # Term 2: gradient flows to POSTERIOR only (regularizes posterior toward prior)
-        kl_loss = (
-            alpha * kl(post.detach(), prior) +           # Train prior
-            (1 - alpha) * kl(post, prior.detach())       # Regularize posterior
-        )
-        free_bits = 0.1  # per-variable, can tune
-
-        kl_loss = torch.clamp(kl_loss - free_bits, min=0)
-
+        # Balanced KL - each term is now shape (B*T,)
+        kl_prior = kl(post.detach(), prior)      # Train prior toward posterior
+        kl_post = kl(post, prior.detach())       # Regularize posterior toward prior
+        
+        # Apply free bits to TOTAL KL per timestep, not per variable
+        kl_prior = torch.clamp(kl_prior - free_nats, min=0)
+        kl_post = torch.clamp(kl_post - free_nats, min=0)
+        
+        kl_loss = alpha * kl_prior + (1 - alpha) * kl_post
+        
         return kl_loss.mean()
+
 
     def compute_loss(self, obs, actions, rewards, continues, kl_weight=0.01):
         """
