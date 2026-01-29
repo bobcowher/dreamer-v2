@@ -402,12 +402,12 @@ class Agent:
 
         for epoch in range(epochs):
             live_reward = self.collect_dataset(1)
-            world_model_loss = self.train_world_model(epochs=100, batch_size=50, sequence_length=50)
+            world_model_loss = self.train_world_model(epochs=10, batch_size=32, sequence_length=50)
             #
             # loss = self.train_encoder(epochs=50, batch_size=16, sequence_length=16)
             visualize.visualize_reconstruction(self.world_model, self.memory, num_samples=4)
 
-            actor_loss, critic_loss = self.train_actor_critic(epochs=50)
+            actor_loss, critic_loss = self.train_actor_critic(epochs=5)
 
             # if(epoch % 10 == 0):
             #     reward = self.evaluate_policy()
