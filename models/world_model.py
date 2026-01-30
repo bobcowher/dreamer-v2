@@ -87,7 +87,7 @@ class WorldModel(BaseModel):
         return embeds
 
     
-    def kl_divergence(self, prior_logits, post_logits, alpha=0.8, free_nats=1.0):
+    def kl_divergence(self, prior_logits, post_logits, alpha=0.8, free_nats=0.1):
         """
         KL Balancing with free bits applied to TOTAL KL.
         """
