@@ -27,15 +27,18 @@ class Agent:
         
         observation, info = self.env.reset(seed=42)
 
-        feature_dim = 1536
         hidden_dim = 512
+        self.hidden_dim_world_model = 128
+
+        feature_dim = 1024 + self.hidden_dim_world_model 
         
         # self.encoder = Encoder(observation_shape=obs.shape).to(self.device)
         # self.encoder_optimizer = torch.optim.Adam(self.encoder.parameters(), learning_rate) 
         num_actions = self.env.action_space.shape[0] # pyright: ignore TODO: Fix this properly later 
 
         self.world_model = WorldModel(obs_shape=obs.shape, 
-                                      action_dim=num_actions).to(self.device)
+                                      action_dim=num_actions,
+                                      hidden_dim=self.hidden_dim_world_model).to(self.device)
         self.world_model_optimizer = torch.optim.Adam(self.world_model.parameters(), learning_rate)
 
     #def __init__(self, feature_dim, num_actions, hidden_dim, action_space=None, checkpoint_dir='checkpoints', name='policy_network'):
@@ -335,7 +338,7 @@ class Agent:
             continues = 1.0 - dones.float()  # Convert dones to continues
 
             embed = self.world_model.encoder(obs_flat)
-            padded = F.pad(embed, (0, 512))  # 1024 → 1536
+            padded = F.pad(embed, (0, self.hidden_dim_world_model))  # 1024 → 1536
             recon = self.world_model.decoder(padded)
 
             loss = F.l1_loss(obs_flat, recon)
@@ -406,6 +409,7 @@ class Agent:
             #
             # loss = self.train_encoder(epochs=50, batch_size=16, sequence_length=16)
             visualize.visualize_reconstruction(self.world_model, self.memory, num_samples=4)
+            visualize.visualize_bypass_test(self.world_model, self.memory, num_samples=4)
 
             actor_loss, critic_loss = self.train_actor_critic(epochs=5)
 
