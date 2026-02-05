@@ -198,6 +198,8 @@ class Agent:
             returns[:, t] = next_return
     
         return returns
+
+    
     
 
     def train_world_model(self, epochs, batch_size, sequence_length):
@@ -333,15 +335,15 @@ class Agent:
                   sequence_length: int):
         total_loss = 0
 
-        for _ in range(epochs):
+        for epoch in range(epochs):
             obs, actions, rewards, next_obs, dones = self.memory.sample_buffer(batch_size, sequence_length)
            
-            obs_flat = obs.view(batch_size * sequence_length, *obs.shape[2:]).float()
+            obs_flat = obs.view(batch_size * sequence_length, *obs.shape[2:]).float() / 255.0
 
             continues = 1.0 - dones.float()  # Convert dones to continues
 
             embed = self.world_model.encoder(obs_flat)
-            padded = F.pad(embed, (0, self.hidden_dim_world_model))  # 1024 → 1536
+            padded = F.pad(embed, (0, self.gru_hidden_dim))  # 1024 → 1536
             recon = self.world_model.decoder(padded)
 
             loss = F.l1_loss(obs_flat, recon)
@@ -351,6 +353,10 @@ class Agent:
             self.world_model_optimizer.zero_grad()
             loss.backward()
             self.world_model_optimizer.step()
+
+            if(epoch % 1000 == 0):
+                print(f"Encoder loss {loss.item()}")
+                visualize.visualize_decoded_image(self.world_model, self.memory, num_samples=4)
             
         avg_loss = total_loss / epochs
 
@@ -404,13 +410,12 @@ class Agent:
 
     def train(self, epochs=0):
 
-        self.collect_dataset(50, use_policy=False)
 
         for epoch in range(epochs):
             live_reward = self.collect_dataset(1)
             world_model_loss = self.train_world_model(epochs=10, batch_size=128, sequence_length=50)
             #
-            # loss = self.train_encoder(epochs=50, batch_size=16, sequence_length=16)
+            #loss = self.train_encoder(epochs=50, batch_size=16, sequence_length=16)
             visualize.visualize_reconstruction(self.world_model, self.memory, num_samples=4)
             visualize.visualize_bypass_test(self.world_model, self.memory, num_samples=4)
             visualize.diagnose_decoder_weights(self.world_model)
