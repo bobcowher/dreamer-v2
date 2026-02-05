@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from models.encoder import Encoder, Decoder  # Your encoder/decoder
+from models.encoder import Encoder, Decoder
 from models.rssm import RSSM, RewardPredictor, ContinuePredictor
 from models.base import BaseModel
 
@@ -9,27 +9,40 @@ from models.base import BaseModel
 class WorldModel(BaseModel):
     def __init__(
         self,
-        obs_shape,          # (3, 64, 64)
-        action_dim,         # 3 for CarRacing
-        hidden_dim=512,
+        obs_shape,              # (3, 64, 64)
+        action_dim,             # 3 for CarRacing
+        gru_hidden_dim=128,     # GRU state size (SMALL - bottleneck)
+        mlp_hidden_dim=512,     # MLP hidden layers (LARGE - capacity)
         stoch_dim=32,
         stoch_classes=32,
-        embed_dim=1024,     # Match encoder output
+        embed_dim=1024,         # Match encoder output
     ):
         super().__init__()
         
+        self.gru_hidden_dim = gru_hidden_dim
+        self.mlp_hidden_dim = mlp_hidden_dim
+        
         self.encoder = Encoder(observation_shape=obs_shape, embed_dim=embed_dim)
         
-        # Calculate feature dimension for decoder
-        feature_dim = hidden_dim + (stoch_dim * stoch_classes)  # h + z
+        # Feature dimension for decoder: h + z
+        self.stoch_flat = stoch_dim * stoch_classes
+        feature_dim = gru_hidden_dim + self.stoch_flat  # 128 + 1024 = 1152
+        
         self.decoder = Decoder(observation_shape=obs_shape, embed_dim=feature_dim)
 
         self.embed_dim = embed_dim
 
-        self.rssm = RSSM(action_dim, embed_dim, hidden_dim, stoch_dim, stoch_classes)
+        self.rssm = RSSM(
+            action_dim=action_dim, 
+            embed_dim=embed_dim, 
+            gru_hidden_dim=gru_hidden_dim,
+            mlp_hidden_dim=mlp_hidden_dim,
+            stoch_dim=stoch_dim, 
+            stoch_classes=stoch_classes
+        )
         
-        self.reward_pred = RewardPredictor(feature_dim)
-        self.continue_pred = ContinuePredictor(feature_dim)
+        self.reward_pred = RewardPredictor(feature_dim, hidden_dim=mlp_hidden_dim)
+        self.continue_pred = ContinuePredictor(feature_dim, hidden_dim=mlp_hidden_dim)
 
     def save_the_model(self, filename="world_model", verbose=False):
         self.encoder.save_the_model(filename="encoder")
@@ -50,10 +63,6 @@ class WorldModel(BaseModel):
             actions: (B, T, action_dim)
         Returns:
             Dict with states, predictions, logits
-        Legend:
-            B - batch_size
-            T - Sequence Length
-            C, H, W - Channels, 
         """
         embeds = self.encode(obs)
 
@@ -162,7 +171,6 @@ class WorldModel(BaseModel):
             "total": total_loss.item(),
         }
 
-    # In WorldModel
     def get_initial_state(self, batch_size):
         return self.rssm.initial_state(batch_size)
 
@@ -184,10 +192,19 @@ if __name__ == "__main__":
     action_dim = 3
     B, T = 4, 16
     
-    # Create model
-    model = WorldModel(obs_shape, action_dim).to(device)
+    # Create model with new architecture
+    model = WorldModel(
+        obs_shape, 
+        action_dim,
+        gru_hidden_dim=128,   # Small bottleneck
+        mlp_hidden_dim=512,   # Large capacity
+    ).to(device)
+    
     print(f"WorldModel created on {device}")
     print(f"Parameters: {sum(p.numel() for p in model.parameters()):,}")
+    print(f"GRU hidden (bottleneck): {model.gru_hidden_dim}")
+    print(f"MLP hidden (capacity):   {model.mlp_hidden_dim}")
+    print(f"Feature dim (h+z):       {model.gru_hidden_dim + model.stoch_flat}")
     
     # Fake batch
     obs = torch.randint(0, 256, (B, T, *obs_shape), dtype=torch.uint8, device=device)
@@ -198,7 +215,7 @@ if __name__ == "__main__":
     # Test forward
     print("\n--- Testing forward ---")
     outputs = model(obs, actions)
-    print(f"h: {outputs['h'].shape}")              # (4, 16, 512)
+    print(f"h: {outputs['h'].shape}")              # (4, 16, 128)
     print(f"z: {outputs['z'].shape}")              # (4, 16, 1024)
     print(f"reward_pred: {outputs['reward_pred'].shape}")  # (4, 16)
     

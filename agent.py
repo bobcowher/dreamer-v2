@@ -28,9 +28,11 @@ class Agent:
         observation, info = self.env.reset(seed=42)
 
         hidden_dim = 512
-        self.hidden_dim_world_model = 128
+        self.hidden_dim_world_model = 512 
+        self.gru_hidden_dim = 128
 
-        feature_dim = 1024 + self.hidden_dim_world_model 
+
+        feature_dim = 1024 + self.gru_hidden_dim 
         
         # self.encoder = Encoder(observation_shape=obs.shape).to(self.device)
         # self.encoder_optimizer = torch.optim.Adam(self.encoder.parameters(), learning_rate) 
@@ -38,7 +40,8 @@ class Agent:
 
         self.world_model = WorldModel(obs_shape=obs.shape, 
                                       action_dim=num_actions,
-                                      hidden_dim=self.hidden_dim_world_model).to(self.device)
+                                      mlp_hidden_dim=hidden_dim,
+                                      gru_hidden_dim=128).to(self.device)
         self.world_model_optimizer = torch.optim.Adam(self.world_model.parameters(), learning_rate)
 
     #def __init__(self, feature_dim, num_actions, hidden_dim, action_space=None, checkpoint_dir='checkpoints', name='policy_network'):
@@ -410,6 +413,10 @@ class Agent:
             # loss = self.train_encoder(epochs=50, batch_size=16, sequence_length=16)
             visualize.visualize_reconstruction(self.world_model, self.memory, num_samples=4)
             visualize.visualize_bypass_test(self.world_model, self.memory, num_samples=4)
+            visualize.diagnose_decoder_weights(self.world_model)
+            visualize.test_z_sensitivity(self.world_model, self.memory)
+            visualize.diagnose_encoder_embeddings(self.world_model, self.memory)
+            visualize.diagnose_posterior_outputs(self.world_model, self.memory)
 
             actor_loss, critic_loss = self.train_actor_critic(epochs=5)
 

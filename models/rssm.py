@@ -12,46 +12,52 @@ class RSSM(BaseModel):
     def __init__(
         self,
         action_dim: int,
-        embed_dim: int = 1024,      # From encoder
-        hidden_dim: int = 512,       # GRU hidden size
+        embed_dim: int = 1024,       # From encoder
+        gru_hidden_dim: int = 128,   # GRU state size (SMALL - bottleneck)
+        mlp_hidden_dim: int = 512,   # MLP hidden layers (LARGE - capacity)
         stoch_dim: int = 32,         # Categorical variables
         stoch_classes: int = 32,     # Classes per variable
     ):
         super().__init__()
         
-        self.hidden_dim = hidden_dim
+        self.hidden_dim = gru_hidden_dim  # For compatibility with world_model.py
+        self.gru_hidden_dim = gru_hidden_dim
+        self.mlp_hidden_dim = mlp_hidden_dim
         self.stoch_dim = stoch_dim
         self.stoch_classes = stoch_classes
         self.stoch_flat = stoch_dim * stoch_classes  # 1024
 
         self.device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
         
-        # TODO: Define layers
         # 1. pre_gru: projects (h, z, a) → GRU input
+        #    Input: gru_hidden_dim + stoch_flat + action_dim
+        #    Output: gru_hidden_dim (to feed into GRU)
         self.pre_gru = nn.Sequential(
-            nn.Linear(hidden_dim + self.stoch_flat + action_dim, hidden_dim),
+            nn.Linear(gru_hidden_dim + self.stoch_flat + action_dim, mlp_hidden_dim),
             nn.ELU(),
+            nn.Linear(mlp_hidden_dim, gru_hidden_dim),
         )
-        # 2. gru: GRUCell
-        self.gru = nn.GRUCell(hidden_dim, hidden_dim)
-        # 3. prior_net: h → logits
+        
+        # 2. gru: GRUCell (the bottleneck!)
+        self.gru = nn.GRUCell(gru_hidden_dim, gru_hidden_dim)
+        
+        # 3. prior_net: h → logits (wide MLP, small h input)
         self.prior_net = nn.Sequential(
-            nn.Linear(hidden_dim, hidden_dim),
+            nn.Linear(gru_hidden_dim, mlp_hidden_dim),
             nn.ELU(),
-            nn.Linear(hidden_dim, self.stoch_flat),
+            nn.Linear(mlp_hidden_dim, self.stoch_flat),
         )
-        # 4. posterior_net: (h, embed) → logits
-        # The Posterior network takes in h(GRU state) and the live environment embedding
-        # and outputs z, 
+        
+        # 4. posterior_net: (h, embed) → logits (wide MLP)
         self.post_net = nn.Sequential(
-            nn.Linear(hidden_dim + embed_dim, hidden_dim),
+            nn.Linear(gru_hidden_dim + embed_dim, mlp_hidden_dim),
             nn.ELU(),
-            nn.Linear(hidden_dim, self.stoch_flat),
+            nn.Linear(mlp_hidden_dim, self.stoch_flat),
         )
 
     def initial_state(self, batch_size: int):
         """Return zeros for (h, z)."""
-        h = torch.zeros(batch_size, self.hidden_dim, device=self.device)
+        h = torch.zeros(batch_size, self.gru_hidden_dim, device=self.device)
         z = torch.zeros(batch_size, self.stoch_flat, device=self.device)
         return h, z
 
@@ -103,7 +109,7 @@ class RSSM(BaseModel):
             embeds:  (B, T, embed_dim)
         
         Returns:
-            h_all:         (B, T, hidden_dim)
+            h_all:         (B, T, gru_hidden_dim)
             z_all:         (B, T, stoch_flat) 
             prior_all:     (B, T, stoch_flat)
             posterior_all: (B, T, stoch_flat)
@@ -180,12 +186,13 @@ if __name__ == "__main__":
     action_dim = 3  # CarRacing: steer, gas, brake
     embed_dim = 1024
     
-    rssm = RSSM(action_dim=action_dim, embed_dim=embed_dim).to(device)
+    rssm = RSSM(action_dim=action_dim, embed_dim=embed_dim, 
+                gru_hidden_dim=128, mlp_hidden_dim=512).to(device)
     
     # Init state
     h, z = rssm.initial_state(B)
     print(f"h: {h.shape}, z: {z.shape}")
-    # Expected: h: (4, 512), z: (4, 1024)
+    # Expected: h: (4, 128), z: (4, 1024)
     
     # Fake inputs
     action = torch.randn(B, action_dim, device=device)
@@ -195,7 +202,7 @@ if __name__ == "__main__":
     h_new, z_new, prior, post = rssm.observe_step(h, z, action, embed)
     print(f"h_new: {h_new.shape}, z_new: {z_new.shape}")
     print(f"prior: {prior.shape}, post: {post.shape}")
-    # Expected: all (4, 512) or (4, 1024)
+    # Expected: h: (4, 128), z/prior/post: (4, 1024)
     
     # Test imagine_step
     h_imag, z_imag = rssm.imagine_step(h, z, action)
@@ -208,15 +215,20 @@ if __name__ == "__main__":
     print(f"Gradients OK: {rssm.post_net[0].weight.grad is not None}")
     
     print("\nAll shapes correct!")
+    
     # Test observe_sequence
     print("\n--- Testing observe_sequence ---")
     B, T = 4, 16
     actions = torch.randn(B, T, action_dim, device=device)
     embeds = torch.randn(B, T, embed_dim, device=device)
 
+    # Need fresh RSSM for gradient test
+    rssm = RSSM(action_dim=action_dim, embed_dim=embed_dim,
+                gru_hidden_dim=128, mlp_hidden_dim=512).to(device)
+    
     h_all, z_all, prior_all, post_all = rssm.observe_sequence(actions, embeds)
 
-    print(f"h_all: {h_all.shape}")       # Expected: (4, 16, 512)
+    print(f"h_all: {h_all.shape}")       # Expected: (4, 16, 128)
     print(f"z_all: {z_all.shape}")       # Expected: (4, 16, 1024)
     print(f"prior_all: {prior_all.shape}")   # Expected: (4, 16, 1024)
     print(f"post_all: {post_all.shape}")     # Expected: (4, 16, 1024)
@@ -225,3 +237,10 @@ if __name__ == "__main__":
     loss = z_all.sum()
     loss.backward()
     print(f"Gradients through sequence: {rssm.gru.weight_hh.grad is not None}")
+    
+    # Print architecture summary
+    print("\n--- Architecture Summary ---")
+    print(f"GRU hidden (bottleneck): {rssm.gru_hidden_dim}")
+    print(f"MLP hidden (capacity):   {rssm.mlp_hidden_dim}")
+    print(f"Stochastic state:        {rssm.stoch_flat}")
+    print(f"Feature dim (h+z):       {rssm.gru_hidden_dim + rssm.stoch_flat}")
