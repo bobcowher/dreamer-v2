@@ -10,7 +10,7 @@ agent.train_encoder(epochs=5000, batch_size=64, sequence_length=16)
 
 print("Completed encoder pre-train")
 
-agent.train(epochs=1200)
+agent.train(epochs=2400)
 
 # del agent
 
