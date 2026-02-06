@@ -95,33 +95,37 @@ class WorldModel(BaseModel):
 
         return embeds
 
-    
-    def kl_divergence(self, prior_logits, post_logits, alpha=0.8, free_nats=0.1):
-        """
-        KL Balancing with free bits applied to TOTAL KL.
-        """
-        prior_logits = prior_logits.view(-1, 32, 32)  # (B*T, 32 vars, 32 classes)
-        post_logits = post_logits.view(-1, 32, 32)
-        
-        prior = F.softmax(prior_logits, dim=-1)
-        post = F.softmax(post_logits, dim=-1)
-        
-        def kl(p, q):
-            # Sum over classes, then sum over variables to get total KL per timestep
-            return (p * (torch.log(p + 1e-8) - torch.log(q + 1e-8))).sum(dim=-1).sum(dim=-1)
-        
-        # Balanced KL - each term is now shape (B*T,)
-        kl_prior = kl(post.detach(), prior)      # Train prior toward posterior
-        kl_post = kl(post, prior.detach())       # Regularize posterior toward prior
-        
-        # Apply free bits to TOTAL KL per timestep, not per variable
-        kl_prior = torch.clamp(kl_prior - free_nats, min=0)
-        kl_post = torch.clamp(kl_post - free_nats, min=0)
-        
-        kl_loss = alpha * kl_prior + (1 - alpha) * kl_post
-        
-        return kl_loss.mean()
 
+    def kl_divergence(self, prior_logits, post_logits, alpha=0.8, free_nats=1.0):
+        # Use model dims, not hard-coded 32s
+        stoch_dim = self.rssm.stoch_dim
+        stoch_classes = self.rssm.stoch_classes
+
+        prior_logits = prior_logits.view(-1, stoch_dim, stoch_classes)
+        post_logits  = post_logits.view(-1, stoch_dim, stoch_classes)
+
+        prior_logprob = F.log_softmax(prior_logits, dim=-1)
+        post_logprob  = F.log_softmax(post_logits,  dim=-1)
+
+        prior_prob = prior_logprob.exp()
+        post_prob  = post_logprob.exp()
+
+        # KL per variable: (B*T, stoch_dim)
+        kl_per_var = (post_prob * (post_logprob - prior_logprob)).sum(dim=-1)
+
+        # KL balancing
+        kl_prior = (post_prob.detach() * (post_logprob.detach() - prior_logprob)).sum(dim=-1)
+        kl_post  = (post_prob * (post_logprob - prior_logprob.detach())).sum(dim=-1)
+
+        # Free nats per variable
+        kl_prior = torch.clamp(kl_prior - free_nats, min=0.0)
+        kl_post  = torch.clamp(kl_post  - free_nats, min=0.0)
+
+        kl = alpha * kl_prior + (1 - alpha) * kl_post
+
+        # Sum vars, mean batch/time
+        return kl.sum(dim=-1).mean()
+    
 
     def compute_loss(self, obs, actions, rewards, continues, kl_weight=0.01):
         """
