@@ -30,7 +30,7 @@
 | stoch_classes | 32 | Classes per variable |
 | stoch_flat | 1024 | 32 × 32, flattened z |
 | embed_dim | 1024 | Encoder output |
-| feature_dim | 1536 | h + z concatenated |
+| feature_dim | 1152 | h + z concatenated |
 
 ## Shape Examples
 

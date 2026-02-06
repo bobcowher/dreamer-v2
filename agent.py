@@ -158,7 +158,8 @@ class Agent:
         for _ in range(horizon):
             features = torch.cat([h, z], dim=-1)
             action, log_prob = self.actor.sample(features)
-            h, z = self.world_model.imagine_step(h, z, action)
+            with torch.no_grad():
+                h, z = self.world_model.imagine_step(h, z, action)
             
             h_list.append(h)
             z_list.append(z)
@@ -343,7 +344,7 @@ class Agent:
             continues = 1.0 - dones.float()  # Convert dones to continues
 
             embed = self.world_model.encoder(obs_flat)
-            padded = F.pad(embed, (0, self.gru_hidden_dim))  # 1024 → 1536
+            padded = F.pad(embed, (0, self.gru_hidden_dim)) # Pad to the required dimensions
             recon = self.world_model.decoder(padded)
 
             loss = F.l1_loss(obs_flat, recon)
@@ -413,9 +414,9 @@ class Agent:
 
         for epoch in range(epochs):
             live_reward = self.collect_dataset(1)
+            
             world_model_loss = self.train_world_model(epochs=10, batch_size=128, sequence_length=50)
             #
-            #loss = self.train_encoder(epochs=50, batch_size=16, sequence_length=16)
             visualize.visualize_reconstruction(self.world_model, self.memory, num_samples=4)
             visualize.visualize_bypass_test(self.world_model, self.memory, num_samples=4)
             visualize.diagnose_decoder_weights(self.world_model)

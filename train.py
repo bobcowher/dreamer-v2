@@ -6,9 +6,9 @@ agent.collect_dataset(100, use_policy=False)
 
 print("Completed dataset collection")
 
-agent.train_encoder(epochs=5000, batch_size=64, sequence_length=16)
-
-print("Completed encoder pre-train")
+# agent.train_encoder(epochs=5000, batch_size=64, sequence_length=16)
+#
+# print("Completed encoder pre-train")
 
 agent.train(epochs=2400)
 

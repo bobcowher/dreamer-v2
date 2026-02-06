@@ -15,7 +15,7 @@ def visualize_decoded_image(world_model, memory, num_samples=4, filename="decode
     with torch.no_grad():
         # Encode observations
         embed = world_model.encoder(obs_flat)
-        padded = F.pad(embed, (0, gru_hidden_dim))  # 1024 → 1536
+        padded = F.pad(embed, (0, gru_hidden_dim))  # 1024 → full feature dim 
         recon = world_model.decoder(padded)
     
     # Convert to numpy HWC format
@@ -292,18 +292,18 @@ def diagnose_decoder_weights(world_model):
     """
     Check if the decoder's first layer has learned to ignore z.
     
-    The decoder input is [h, z] = [hidden_dim, stoch_flat] = [512, 1024] = 1536
+    The decoder input is [h, z] = [hidden_dim, stoch_flat]
     If weights for the z portion are near zero, decoder is ignoring z.
     """
     # Get first layer weights
-    fc_weights = world_model.decoder.fc_dec.weight  # (out_features, in_features) = (6144, 1536)
+    fc_weights = world_model.decoder.fc_dec.weight 
     
-    hidden_dim = world_model.rssm.hidden_dim  # 512
-    stoch_flat = world_model.rssm.stoch_flat  # 1024
+    hidden_dim = world_model.rssm.hidden_dim 
+    stoch_flat = world_model.rssm.stoch_flat 
     
     # Split weights into h portion and z portion
-    h_weights = fc_weights[:, :hidden_dim]      # (6144, 512)
-    z_weights = fc_weights[:, hidden_dim:]      # (6144, 1024)
+    h_weights = fc_weights[:, :hidden_dim] 
+    z_weights = fc_weights[:, hidden_dim:] 
     
     # Compute statistics
     h_norm = h_weights.norm().item()

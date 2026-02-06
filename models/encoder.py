@@ -59,7 +59,7 @@ class Encoder(BaseModel):
 
 class Decoder(BaseModel):
 
-    def __init__(self, observation_shape=(), embed_dim=1536, conv_output_shape=[]):
+    def __init__(self, observation_shape, embed_dim, conv_output_shape=[]):
         super().__init__()
         
         # Calculate the required output size dynamically

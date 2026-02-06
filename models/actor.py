@@ -45,26 +45,26 @@ class Actor(BaseModel):
         return action, log_prob
 
 
-if __name__ == "__main__":
-
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    
-    feature_dim = 1536
-    action_dim = 3
-    B = 4
-    
-    actor = Actor(feature_dim, action_dim, hidden_dim=512).to(device)
-    critic = Critic(feature_dim, hidden_dim=512).to(device)
-    
-    features = torch.randn(B, feature_dim, device=device)
-    
-    # Test actor
-    action, log_prob = actor.sample(features)
-    print(f"action: {action.shape}")      # (4, 3)
-    print(f"log_prob: {log_prob.shape}")  # (4, 1)
-    
-    # Test critic  
-    value = critic(features)
-    print(f"value: {value.shape}")        # (4,)
-    
-    print("\nActor-Critic OK!")
+# if __name__ == "__main__":
+#
+#     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+#     
+#     feature_dim = 1536
+#     action_dim = 3
+#     B = 4
+#     
+#     actor = Actor(feature_dim, action_dim, hidden_dim=512).to(device)
+#     critic = Critic(feature_dim, hidden_dim=512).to(device)
+#     
+#     features = torch.randn(B, feature_dim, device=device)
+#     
+#     # Test actor
+#     action, log_prob = actor.sample(features)
+#     print(f"action: {action.shape}")      # (4, 3)
+#     print(f"log_prob: {log_prob.shape}")  # (4, 1)
+#     
+#     # Test critic  
+#     value = critic(features)
+#     print(f"value: {value.shape}")        # (4,)
+#     
+#     print("\nActor-Critic OK!")
