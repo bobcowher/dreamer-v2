@@ -415,7 +415,7 @@ class Agent:
         for epoch in range(epochs):
             live_reward = self.collect_dataset(1)
             
-            world_model_loss = self.train_world_model(epochs=10, batch_size=128, sequence_length=50)
+            world_model_loss = self.train_world_model(epochs=50, batch_size=128, sequence_length=50)
             #
             visualize.visualize_reconstruction(self.world_model, self.memory, num_samples=4)
             visualize.visualize_bypass_test(self.world_model, self.memory, num_samples=4)
