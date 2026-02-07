@@ -97,6 +97,21 @@ class Agent:
         obs = torch.from_numpy(obs).permute(2, 0, 1).to(self.device)
         return obs 
 
+    def scale_action(self, action):
+        # a: (...,3) in [-1,1]
+        if torch.is_tensor(action):
+            steer = action[..., 0:1]
+            gas   = (action[..., 1:2] + 1.0) * 0.5
+            brake = (action[..., 2:3] + 1.0) * 0.5
+            action = torch.cat([steer, gas, brake], dim=-1)
+        else:
+            action = action.copy()
+            action[1] = (action[1] + 1.0) * 0.5
+            action[2] = (action[2] + 1.0) * 0.5
+
+        return action
+
+
     def get_action(self, obs, h, z, deterministic=False):
         """
         Get action from policy given observation and RSSM state.
@@ -131,8 +146,7 @@ class Agent:
             action = action.squeeze(0).cpu().numpy()
         
         # Scale to environment bounds
-        action[1] = (action[1] + 1) / 2  # gas: [-1,1] → [0,1]
-        action[2] = (action[2] + 1) / 2  # brake: [-1,1] → [0,1]
+        action = self.scale_action(action)
         
         return action, h, z
 
@@ -158,6 +172,8 @@ class Agent:
         for _ in range(horizon):
             features = torch.cat([h, z], dim=-1)
             action, log_prob = self.actor.sample(features)
+            action = self.scale_action(action)
+
             with torch.no_grad():
                 h, z = self.world_model.imagine_step(h, z, action)
             
@@ -287,6 +303,8 @@ class Agent:
             z_final = z[:, -1]
 
             features, actions, log_probs = self.imagine_trajectory(h_final, z_final, horizon)
+
+            # print(actions)
 
             batch_size, horizon_plus_1, feature_dim = features.shape
             horizon = horizon_plus_1 - 1
