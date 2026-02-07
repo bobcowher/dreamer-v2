@@ -180,12 +180,16 @@ class WorldModel(BaseModel):
 
     def observe(self, actions, embeds):
         return self.rssm.observe_sequence(actions, embeds)
+    
+    def observe_step(self, h, z, action, embed):
+        return self.rssm.observe_step(h, z, action, embed)
 
     def imagine_step(self, h, z, action):
         return self.rssm.imagine_step(h, z, action)
 
     def predict_reward(self, features):
         return self.reward_pred(features)
+
 
 
 if __name__ == "__main__":

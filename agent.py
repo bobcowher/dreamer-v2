@@ -111,44 +111,29 @@ class Agent:
 
         return action
 
-
-    def get_action(self, obs, h, z, deterministic=False):
-        """
-        Get action from policy given observation and RSSM state.
-        
-        Args:
-            obs: processed observation (C, H, W)
-            h: deterministic state (1, hidden_dim)
-            z: stochastic state (1, stoch_flat)
-            deterministic: if True, use mean instead of sampling
-        
-        Returns:
-            action: numpy array scaled to env bounds
-            h_new, z_new: updated RSSM state
-        """
+    def get_action(self, obs, h, z, prev_action, deterministic=False):
         with torch.no_grad():
-            obs_batch = obs.unsqueeze(0).unsqueeze(0)  # (1, 1, C, H, W)
-            embed = self.world_model.encode(obs_batch)
-            
-            # Dummy action for observe (action doesn't affect posterior much)
-            dummy_action = torch.zeros(1, 1, 3, device=self.device)
-            h, z, _, _ = self.world_model.observe(dummy_action, embed)
-            h, z = h[:, -1], z[:, -1]
-            
+            # 1) encode current obs -> embed_t shape (1, embed_dim)
+            obs_batch = obs.unsqueeze(0).unsqueeze(0)          # (1,1,C,H,W)
+            embed_seq = self.world_model.encode(obs_batch)     # (1,1,E)
+            embed_t   = embed_seq[:, 0]                        # (1,E)
+
+            # 2) update RSSM using prev_action (1,3) and embed_t
+            a_prev = torch.as_tensor(prev_action, device=self.device).float().unsqueeze(0)  # (1,3)
+            h, z, _, _ = self.world_model.observe_step(h, z, a_prev, embed_t)
+
+            # 3) act from updated state
             features = torch.cat([h, z], dim=-1)
-            
             if deterministic:
-                mean, _ = self.actor.forward(features)
-                action = torch.tanh(mean)
+                mean, _ = self.actor(features)
+                a_pol = torch.tanh(mean)
             else:
-                action, _ = self.actor.sample(features)
-            
-            action = action.squeeze(0).cpu().numpy()
-        
-        # Scale to environment bounds
-        action = self.scale_action(action)
-        
-        return action, h, z
+                a_pol, _ = self.actor.sample(features)
+
+            a_env = self.scale_action(a_pol).squeeze(0).cpu().numpy()
+
+        return a_env, h, z
+
 
     def imagine_trajectory(self, start_h, start_z, horizon):
         """
@@ -396,10 +381,12 @@ class Agent:
             episode_reward = 0.0
 
             h, z = self.world_model.get_initial_state(1)
+
+            prev_action = np.zeros(3, dtype=np.float32)
             
             while not done:
                 if use_policy:
-                    action, h, z = self.get_action(obs, h, z)
+                    action, h, z = self.get_action(obs, h, z, prev_action)
                 else:
                     action = self.heuristic_action()
                 
@@ -411,6 +398,7 @@ class Agent:
                 self.memory.store_transition(obs, action, reward, next_obs, done)
 
                 obs = next_obs
+                prev_action = action
 
                 if(random.random() < 0.01):
                     print(f"Action Sample: {action}")
