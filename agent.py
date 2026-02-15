@@ -436,6 +436,9 @@ class Agent:
             self.summary_writer.add_scalar("Loss/Actor", actor_loss, epoch)
             self.summary_writer.add_scalar("Loss/Critic", critic_loss, epoch)
 
+            self.summary_writer.add_scalar("Params/World Model Training Epochs", self.world_model_epochs, epoch)
+            self.summary_writer.add_scalar("Params/Actor-Critic Training Epochs", self.actor_critic_epochs, epoch)
+
             
 
             for key, val in world_model_loss.items():
