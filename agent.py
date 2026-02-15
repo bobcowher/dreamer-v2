@@ -247,15 +247,19 @@ class Agent:
             episode_reward = 0
             
             h, z = self.world_model.get_initial_state(1)
+
+            prev_action = np.zeros(3, dtype=np.float32)
             
             while not done:
-                action, h, z = self.get_action(obs, h, z)
 
+                action, h, z = self.get_action(obs, h, z, prev_action)
                 
                 obs, reward, done, truncated, _ = self.env.step(action)
                 obs = self.process_observation(obs)
                 done = done or truncated
                 episode_reward += float(reward)
+
+                prev_action = action
                 
                 if done:
                     # Only print the last action, for log purposes. 
