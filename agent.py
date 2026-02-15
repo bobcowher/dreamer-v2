@@ -337,41 +337,6 @@ class Agent:
         return avg_actor_loss, avg_critic_loss
 
 
-    def train_encoder(self,
-                  epochs : int,
-                  batch_size: int,
-                  sequence_length: int):
-        total_loss = 0
-
-        for epoch in range(epochs):
-            obs, actions, rewards, next_obs, dones = self.memory.sample_buffer(batch_size, sequence_length)
-           
-            obs_flat = obs.view(batch_size * sequence_length, *obs.shape[2:]).float() / 255.0
-
-            continues = 1.0 - dones.float()  # Convert dones to continues
-
-            embed = self.world_model.encoder(obs_flat)
-            padded = F.pad(embed, (0, self.gru_hidden_dim)) # Pad to the required dimensions
-            recon = self.world_model.decoder(padded)
-
-            loss = F.l1_loss(obs_flat, recon)
-            
-            total_loss += loss.item()
-            
-            self.world_model_optimizer.zero_grad()
-            loss.backward()
-            self.world_model_optimizer.step()
-
-            if(epoch % 1000 == 0):
-                print(f"Encoder loss {loss.item()}")
-                visualize.visualize_decoded_image(self.world_model, self.memory, num_samples=4)
-            
-        avg_loss = total_loss / epochs
-
-        return avg_loss
-
-
-
     def collect_dataset(self, 
                         episodes : int,
                         use_policy=True):
@@ -425,7 +390,7 @@ class Agent:
         for epoch in range(epochs):
             live_reward = self.collect_dataset(1)
             
-            world_model_loss = self.train_world_model(epochs=50, batch_size=128, sequence_length=50)
+            world_model_loss = self.train_world_model(epochs=100, batch_size=128, sequence_length=50)
             #
             visualize.visualize_reconstruction(self.world_model, self.memory, num_samples=4)
             visualize.visualize_bypass_test(self.world_model, self.memory, num_samples=4)
