@@ -1,3 +1,4 @@
+import collections
 import numpy as np
 import gymnasium as gym
 import cv2
@@ -12,6 +13,8 @@ from torch.utils.tensorboard.writer import SummaryWriter
 import datetime
 import visualize
 import random
+from collections import deque
+import sys
 
 class Agent:
 
@@ -68,6 +71,16 @@ class Agent:
         summary_writer_name = f'{summary_writer_name}_kl_weight_0.01_lg_network'
         self.summary_writer = SummaryWriter(summary_writer_name)
         self.total_steps_world_model = 0
+
+        self.world_model_losses = collections.deque(maxlen=10)
+        self.actor_critic_losses = collections.deque(maxlen=10)
+
+        self.world_model_epochs = 100
+        self.actor_critic_epochs = 10 
+
+        self.max_training_epochs = 500
+        self.min_training_epochs = 1
+
 
 
     def __del__(self):
@@ -369,8 +382,8 @@ class Agent:
                 obs = next_obs
                 prev_action = action
 
-                if(random.random() < 0.01):
-                    print(f"Action Sample: {action}")
+                # if(random.random() < 0.01):
+                #     print(f"Action Sample: {action}")
 
                 episode_reward = episode_reward + float(reward)
 
@@ -386,30 +399,44 @@ class Agent:
 
     def train(self, epochs=0):
 
-
         for epoch in range(epochs):
             live_reward = self.collect_dataset(1)
             
-            world_model_loss = self.train_world_model(epochs=100, batch_size=128, sequence_length=50)
+            world_model_loss = self.train_world_model(epochs=self.world_model_epochs, batch_size=128, sequence_length=50)
             #
-            visualize.visualize_reconstruction(self.world_model, self.memory, num_samples=4)
-            visualize.visualize_bypass_test(self.world_model, self.memory, num_samples=4)
-            visualize.diagnose_decoder_weights(self.world_model)
-            visualize.test_z_sensitivity(self.world_model, self.memory)
-            visualize.diagnose_encoder_embeddings(self.world_model, self.memory)
-            visualize.diagnose_posterior_outputs(self.world_model, self.memory)
+            # visualize.visualize_reconstruction(self.world_model, self.memory, num_samples=4)
+            # visualize.visualize_bypass_test(self.world_model, self.memory, num_samples=4)
+            # visualize.diagnose_decoder_weights(self.world_model)
+            # visualize.test_z_sensitivity(self.world_model, self.memory)
+            # visualize.diagnose_encoder_embeddings(self.world_model, self.memory)
+            # visualize.diagnose_posterior_outputs(self.world_model, self.memory)
 
-            actor_loss, critic_loss = self.train_actor_critic(epochs=5)
+            actor_loss, critic_loss = self.train_actor_critic(epochs=self.actor_critic_epochs)
 
-            # if(epoch % 10 == 0):
-            #     reward = self.evaluate_policy()
+            # total_world_model_loss = 0
+            #
+            # for key, val in world_model_loss.items():
+            #     total_world_model_loss += val 
+
+            self.world_model_losses.append(world_model_loss['world_model'])
+            self.actor_critic_losses.append(actor_loss + critic_loss)
+           
+            if(sum(self.world_model_losses) / len(self.world_model_losses)) > world_model_loss['world_model']:
+                self.world_model_epochs = min(self.max_training_epochs, self.world_model_epochs + 10)
+            else:
+                self.world_model_epochs = max(self.min_training_epochs, self.world_model_epochs - 50)
+
             print(f"Epoch {epoch} Eval Reward: {live_reward}")
             self.summary_writer.add_scalar("Eval/Reward", live_reward, epoch)
 
             print(f"Epoch {epoch} Loss - World Model: {world_model_loss} Actor: {actor_loss} Critic: {critic_loss}")
 
+            print(f"World Model Epochs: {self.world_model_epochs}")
+
             self.summary_writer.add_scalar("Loss/Actor", actor_loss, epoch)
             self.summary_writer.add_scalar("Loss/Critic", critic_loss, epoch)
+
+            
 
             for key, val in world_model_loss.items():
                 self.summary_writer.add_scalar(f"Loss/WorldModel {key}", val, epoch)
