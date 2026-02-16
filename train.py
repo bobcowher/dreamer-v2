@@ -2,7 +2,7 @@ from agent import Agent
 
 agent = Agent(render_mode="rgb_array", max_buffer_size=500000)
 
-agent.collect_dataset(100, use_policy=False)
+agent.collect_dataset(10, use_policy=False)
 
 print("Completed dataset collection")
 
