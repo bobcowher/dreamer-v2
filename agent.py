@@ -425,7 +425,7 @@ class Agent:
         for epoch in range(epochs):
             live_reward = self.collect_dataset(1)
             
-            world_model_loss = self.train_world_model(epochs=250, batch_size=50, sequence_length=50)
+            world_model_loss = self.train_world_model(epochs=20, batch_size=50, sequence_length=50)
             #
             visualize.visualize_reconstruction(self.world_model, self.memory, num_samples=4)
             visualize.visualize_bypass_test(self.world_model, self.memory, num_samples=4)
@@ -434,7 +434,7 @@ class Agent:
             visualize.diagnose_encoder_embeddings(self.world_model, self.memory)
             visualize.diagnose_posterior_outputs(self.world_model, self.memory)
 
-            actor_loss, critic_loss = self.train_actor_critic(epochs=250)
+            actor_loss, critic_loss = self.train_actor_critic(epochs=20)
 
             # if(epoch % 10 == 0):
             #     reward = self.evaluate_policy()
