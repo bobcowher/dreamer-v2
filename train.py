@@ -10,7 +10,13 @@ print("Completed dataset collection")
 #
 # print("Completed encoder pre-train")
 
-agent.train(epochs=2400)
+world_model_epochs = 10
+actor_critic_epochs = 10
+
+agent.train(epochs=2400, 
+            wm_epochs=world_model_epochs, 
+            ac_epochs=actor_critic_epochs, 
+            summary_writer_label=f"wm_ep={world_model_epochs}-ac_ep={actor_critic_epochs}")
 
 # del agent
 
