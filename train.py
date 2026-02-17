@@ -10,7 +10,7 @@ print("Completed dataset collection")
 #
 # print("Completed encoder pre-train")
 
-world_model_epochs = 10
+world_model_epochs = 50
 actor_critic_epochs = 10
 
 agent.train(epochs=2400, 
