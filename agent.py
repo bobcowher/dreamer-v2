@@ -201,7 +201,7 @@ class Agent:
     
     
 
-    def train_world_model(self, epochs, batch_size, sequence_length, free_nats=0.1):
+    def train_world_model(self, epochs, batch_size, sequence_length, free_nats=1.0):
       
         # Declaring avg loss. We'll add to this and average it at the end. 
         avg_loss = {"world_model": 0.0,
@@ -267,7 +267,7 @@ class Agent:
         return total_reward / num_episodes
 
                 
-    def train_actor_critic(self, epochs=1, batch_size=16, horizon=15):
+    def train_actor_critic(self, epochs=1, batch_size=16, horizon=15, grad_clip=10.0):
         """
         Train actor and critic on imagined trajectories.
         
@@ -322,8 +322,8 @@ class Agent:
 
             (actor_loss + critic_loss).backward()
 
-            torch.nn.utils.clip_grad_norm_(self.actor.parameters(), max_norm=100)
-            torch.nn.utils.clip_grad_norm_(self.critic.parameters(), max_norm=100)
+            torch.nn.utils.clip_grad_norm_(self.actor.parameters(), max_norm=grad_clip)
+            torch.nn.utils.clip_grad_norm_(self.critic.parameters(), max_norm=grad_clip)
 
             self.critic_optimizer.step()
             self.actor_optimizer.step()
@@ -416,10 +416,10 @@ class Agent:
             #     print(f"Heuristic policy episode reward: {episode_reward}")
             #
 
-    def train(self, epochs, wm_epochs, ac_epochs, free_nats=0.1, summary_writer_label=""):
+    def train(self, epochs, wm_epochs, ac_epochs, free_nats=1.0, grad_clip=10.0, summary_writer_label=""):
         
         summary_writer_name = f'runs/{datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")}'
-        summary_writer_name = summary_writer_name + f"_fn={free_nats}" + summary_writer_label
+        summary_writer_name = summary_writer_name + f"_fn={free_nats}_gc={grad_clip}" + summary_writer_label
         # summary_writer_name = f'{summary_writer_name}'
         self.summary_writer = SummaryWriter(summary_writer_name)
 
@@ -436,7 +436,7 @@ class Agent:
             visualize.diagnose_encoder_embeddings(self.world_model, self.memory)
             visualize.diagnose_posterior_outputs(self.world_model, self.memory)
 
-            actor_loss, critic_loss = self.train_actor_critic(epochs=ac_epochs)
+            actor_loss, critic_loss = self.train_actor_critic(epochs=ac_epochs, grad_clip=grad_clip)
 
             # if(epoch % 10 == 0):
             #     reward = self.evaluate_policy()
