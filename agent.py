@@ -201,7 +201,7 @@ class Agent:
     
     
 
-    def train_world_model(self, epochs, batch_size, sequence_length):
+    def train_world_model(self, epochs, batch_size, sequence_length, free_nats=0.1):
       
         # Declaring avg loss. We'll add to this and average it at the end. 
         avg_loss = {"world_model": 0.0,
@@ -215,7 +215,7 @@ class Agent:
            
             continues = 1.0 - dones.float()  # Convert dones to continues
             
-            loss, loss_dict = self.world_model.compute_loss(obs, actions, rewards, continues)
+            loss, loss_dict = self.world_model.compute_loss(obs, actions, rewards, continues, free_nats=free_nats)
             
             self.world_model_optimizer.zero_grad()
             loss.backward()
@@ -416,10 +416,10 @@ class Agent:
             #     print(f"Heuristic policy episode reward: {episode_reward}")
             #
 
-    def train(self, epochs, wm_epochs, ac_epochs, summary_writer_label=""):
+    def train(self, epochs, wm_epochs, ac_epochs, free_nats=0.1, summary_writer_label=""):
         
         summary_writer_name = f'runs/{datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")}'
-        summary_writer_name = summary_writer_name + summary_writer_label
+        summary_writer_name = summary_writer_name + f"_fn={free_nats}" + summary_writer_label
         # summary_writer_name = f'{summary_writer_name}'
         self.summary_writer = SummaryWriter(summary_writer_name)
 
@@ -427,7 +427,7 @@ class Agent:
         for epoch in range(epochs):
             live_reward = self.collect_dataset(1)
             
-            world_model_loss = self.train_world_model(epochs=wm_epochs, batch_size=50, sequence_length=50)
+            world_model_loss = self.train_world_model(epochs=wm_epochs, batch_size=50, sequence_length=50, free_nats=free_nats)
             #
             visualize.visualize_reconstruction(self.world_model, self.memory, num_samples=4)
             visualize.visualize_bypass_test(self.world_model, self.memory, num_samples=4)

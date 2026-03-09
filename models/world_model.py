@@ -96,7 +96,7 @@ class WorldModel(BaseModel):
         return embeds
 
 
-    def kl_divergence(self, prior_logits, post_logits, alpha=0.8, free_nats=1.0):
+    def kl_divergence(self, prior_logits, post_logits, alpha=0.8, free_nats=0.1):
         # Use model dims, not hard-coded 32s
         stoch_dim = self.rssm.stoch_dim
         stoch_classes = self.rssm.stoch_classes
@@ -127,7 +127,7 @@ class WorldModel(BaseModel):
         return kl.sum(dim=-1).mean()
     
 
-    def compute_loss(self, obs, actions, rewards, continues, kl_weight=0.01):
+    def compute_loss(self, obs, actions, rewards, continues, kl_weight=0.01, free_nats=0.1):
         """
         Args:
             obs:       (B, T, C, H, W) uint8
@@ -161,8 +161,9 @@ class WorldModel(BaseModel):
         
         # 4. KL loss (prior vs posterior)
         kl_loss = self.kl_divergence(
-            outputs["prior_logits"], 
-            outputs["post_logits"]
+            outputs["prior_logits"],
+            outputs["post_logits"],
+            free_nats=free_nats
         )
 
         total_loss = recon_loss + reward_loss + continue_loss + (kl_weight * kl_loss)
