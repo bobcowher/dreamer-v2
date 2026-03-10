@@ -279,7 +279,7 @@ class Agent:
         total_actor_loss = 0
 
         for epoch in range(epochs):
-            obs, actions, rewards, next_obs, dones = self.memory.sample_buffer(batch_size, 1)
+            obs, actions, rewards, next_obs, dones = self.memory.sample_buffer(batch_size, 16)
 
             embeds = self.world_model.encode(obs)
 
